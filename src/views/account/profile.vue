@@ -168,6 +168,40 @@
       </el-form>
     </el-card>
 
+    <!-- Line 帳號綁定 -->
+    <el-card class="card-margin">
+      <template #header>
+        <el-row type="flex" justify="space-between" align="middle">
+          <h2 class="el-card__title">Line 帳號綁定 {{ isLineBound }}</h2>
+        </el-row>
+      </template>
+      <el-row type="flex" align="middle" justify="center" :gutter="20">
+        <el-col :xs="24" :sm="16">
+          <div class="line-binding-status">
+            <div class="line-status-info">
+              <i :class="lineBindingIconClass"></i>
+              <div class="line-status-text">
+                <h3>Line 帳號{{ isLineBound ? '已綁定' : '未綁定' }}</h3>
+                <p v-if="isLineBound">綁定時間：{{ lineBindingInfo.bindingDate }}</p>
+                <p v-if="isLineBound">Line 用戶名：{{ lineBindingInfo.lineUsername }}</p>
+                <p v-if="!isLineBound">綁定 Line 帳號可享有更多便利的服務</p>
+              </div>
+            </div>
+          </div>
+        </el-col>
+        <el-col :xs="24" :sm="8" style="text-align: center">
+          <el-button
+            :type="isLineBound ? 'danger' : 'primary'"
+            @click="handleLineBinding"
+            :icon="isLineBound ? 'el-icon-close' : 'el-icon-connection'"
+            class="line-button"
+          >
+            {{ isLineBound ? '解除綁定' : '綁定 Line 帳號' }}
+          </el-button>
+        </el-col>
+      </el-row>
+    </el-card>
+
     <!-- 密碼設定 -->
     <el-card class="card-margin">
       <template #header>
@@ -247,10 +281,39 @@
         </el-col>
       </el-row>
     </el-card>
+    
+    <!-- Line 綁定對話框 -->
+    <el-dialog
+      :title="isLineBound ? '解除 Line 綁定' : 'Line 帳號綁定'"
+      :visible.sync="lineDialogVisible"
+      width="360px"
+      center
+    >
+      <div v-if="!isLineBound" class="line-login-container">
+        <div class="line-qrcode">
+          <img src="/api/placeholder/200/200" alt="Line QR Code" />
+        </div>
+        <p class="line-login-text">請使用 Line 掃描上方 QR Code 進行綁定</p>
+        <p class="line-login-note">或點擊下方按鈕使用 Line 帳號登入</p>
+        <el-button type="success" class="line-login-button">
+          <i class="line-icon"></i> 使用 Line 登入
+        </el-button>
+      </div>
+      <div v-else class="line-unbind-container">
+        <p class="line-unbind-text">確定要解除 Line 帳號綁定嗎？</p>
+        <p class="line-unbind-note">解除綁定後，將無法使用 Line 進行快速登入</p>
+      </div>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="lineDialogVisible = false">{{ isLineBound ? '取消' : '稍後再說' }}</el-button>
+        <el-button v-if="isLineBound" type="danger" @click="unbindLine">確認解除綁定</el-button>
+        <el-button v-else type="primary" @click="bindLine">確認綁定</el-button>
+      </span>
+    </el-dialog>
   </div>
 </template>
 
 <script>
+import { get_line_binding_url, unbind_line_account } from "@/api/line_login";
 export default {
   name: "UserProfile",
   data() {
@@ -302,8 +365,22 @@ export default {
         joinDate: "2024-01-01",
         status: "正常",
         lineStatus: "已綁定"
+      },
+      
+      isLineBound: true,
+      lineDialogVisible: false,
+      lineBindingInfo: {
+        bindingDate: "2024-02-15",
+        lineUsername: "User_LINE"
       }
     };
+  },
+  computed: {
+    lineBindingIconClass() {
+      return this.isLineBound 
+        ? "el-icon-check line-icon-bound" 
+        : "el-icon-warning-outline line-icon-unbound";
+    }
   },
   created() {
     this.fetchUserData();
@@ -329,6 +406,7 @@ export default {
             }
           ]
         };
+        
       }, 100);
     },
     addNewAddress() {
@@ -367,6 +445,52 @@ export default {
     },
     goToChangePassword() {
       this.$router.push("/changepassword");
+    },
+    handleLineBinding() {
+      if(this.isLineBound) {
+        this.lineDialogVisible = true;
+      } 
+      else {
+        this.bindLine()
+      }
+    },
+
+
+    bindLine(){
+        return new Promise((resolve, reject) => {
+          get_line_binding_url()
+            .then(response => {
+              const { data } = response;
+              
+              // 成功取得 Line 登入網址
+              const login_url = data['login_url']; // 取得 Line 登入網址
+              if(login_url) {
+                window.location.href = login_url;
+              }
+              else {
+                throw new Error('No login URL received');
+              }
+              
+              resolve(data);
+            })
+            .catch(error => {
+              reject(error);
+            });
+      });
+    },
+
+    unbindLine() {
+      return new Promise((resolve, reject) => {
+          unbind_line_account()
+            .then(response => {
+              const { data } = response;
+              console.log(data)
+              resolve(data);
+            })
+            .catch(error => {
+              reject(error);
+            });
+      });
     }
   }
 };
@@ -431,6 +555,112 @@ export default {
   box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08) !important;
 }
 
+/* Line 綁定相關樣式 */
+.line-binding-status {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 10px;
+}
+
+.line-status-info {
+  display: flex;
+  align-items: center;
+}
+
+.line-status-info i {
+  font-size: 40px;
+  margin-right: 20px;
+}
+
+.line-icon-bound {
+  color: #4caf50;
+}
+
+.line-icon-unbound {
+  color: #909399;
+}
+
+.line-status-text h3 {
+  margin: 0 0 10px 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.line-status-text p {
+  margin: 5px 0;
+  color: #606266;
+  font-size: 14px;
+}
+
+.line-button {
+  min-width: 160px;
+  margin-top: 10px;
+}
+
+.line-login-container {
+  text-align: center;
+  padding: 20px 0;
+}
+
+.line-qrcode {
+  margin: 0 auto 20px;
+  width: 200px;
+  height: 200px;
+}
+
+.line-login-text {
+  margin: 10px 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.line-login-note {
+  margin: 10px 0 20px;
+  color: #909399;
+  font-size: 14px;
+}
+
+.line-login-button {
+  background-color: #06C755;
+  color: #fff;
+  width: 80%;
+  margin: 0 auto;
+  border: none;
+}
+
+.line-login-button:hover,
+.line-login-button:focus {
+  background-color: #05b64d;
+  border-color: #05b64d;
+  color: #fff;
+}
+
+.line-icon {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  background-color: #fff;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+
+.line-unbind-container {
+  text-align: center;
+  padding: 20px 0;
+}
+
+.line-unbind-text {
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+
+.line-unbind-note {
+  font-size: 14px;
+  color: #F56C6C;
+}
+
 @media screen and (max-width: 768px) {
   .app-container {
     padding: 10px;
@@ -472,6 +702,20 @@ export default {
 
   .info-content {
     padding: 12px 0;
+  }
+  
+  .line-binding-status {
+    padding: 5px;
+  }
+  
+  .line-status-info i {
+    font-size: 30px;
+    margin-right: 10px;
+  }
+  
+  .line-button {
+    width: 100%;
+    margin-top: 15px;
   }
 }
 </style>

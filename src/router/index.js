@@ -47,6 +47,11 @@ export const constantRoutes = [
     hidden: true
   },
   {
+    path: "/linelogincallback",
+    component: () => import("@/views/login/LineLoginCallback"),
+    hidden: false // 白名單設定之後，登入還能訪問
+  },
+  {
     path: "/binding",
     component: () => import("@/views/login/binding"),
     hidden: true
