@@ -23,6 +23,11 @@
               首頁
             </el-dropdown-item>
           </router-link>
+          <router-link to="/profile/account">
+            <el-dropdown-item divided>
+              帳號管理
+            </el-dropdown-item>
+          </router-link>
           <router-link to="/changepassword">
             <el-dropdown-item divided>
               修改密碼
