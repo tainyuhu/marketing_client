@@ -17,9 +17,9 @@
         <el-tab-pane label="基本資料" name="basic">
           <el-row :gutter="20">
             <el-col :span="12">
-              <el-form-item label="售後單號" prop="caseId">
+              <el-form-item label="售後單號" prop="orderNumber">
                 <el-input
-                  v-model="formData.caseId"
+                  v-model="formData.orderNumber"
                   placeholder="系統自動生成"
                   disabled
                 ></el-input>
@@ -54,9 +54,9 @@
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="聯絡方式" prop="contactInfo">
+              <el-form-item label="聯絡方式" prop="contactPhone">
                 <el-input
-                  v-model="formData.contactInfo"
+                  v-model="formData.contactPhone"
                   placeholder="請輸入聯絡方式"
                 ></el-input>
               </el-form-item>
@@ -268,10 +268,10 @@ export default {
       dialogVisible: false,
       activeTab: "basic",
       formData: {
-        caseId: "",
+        orderNumber: "",
         originalOrderId: "",
         customerName: "",
-        contactInfo: "",
+        contactPhone: "",
         orderTotal: 0,
         applyDate: new Date(),
         priority: "中",
@@ -292,7 +292,7 @@ export default {
         customerName: [
           { required: true, message: "請輸入客戶名稱", trigger: "blur" }
         ],
-        contactInfo: [
+        contactPhone: [
           { required: true, message: "請輸入聯絡方式", trigger: "blur" }
         ],
         orderTotal: [
@@ -375,10 +375,10 @@ export default {
 
     resetForm() {
       this.formData = {
-        caseId: "",
+        orderNumber: "",
         originalOrderId: "",
         customerName: "",
-        contactInfo: "",
+        contactPhone: "",
         orderTotal: 0,
         applyDate: new Date(),
         priority: "中",
@@ -416,8 +416,8 @@ export default {
           // 自動填充訂單相關資訊
           this.formData.customerName =
             orderData.customerName || this.formData.customerName;
-          this.formData.contactInfo =
-            orderData.contactInfo || this.formData.contactInfo;
+          this.formData.contactPhone =
+            orderData.contactPhone || this.formData.contactPhone;
           this.formData.orderTotal =
             orderData.orderTotal || this.formData.orderTotal;
         }

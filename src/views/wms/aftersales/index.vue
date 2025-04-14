@@ -50,9 +50,9 @@
                 :data="filteredCaseData"
                 :columns="mainColumns"
                 :sub-table-configs="subTableConfigs"
-                :row-key="'caseId'"
+                :row-key="'orderNumber'"
                 :sub-row-key="'id'"
-                :title-field="'caseId'"
+                :title-field="'orderNumber'"
                 :show-toolbar="true"
                 :show-selection-column="true"
                 :border="true"
@@ -112,17 +112,19 @@
                     <div class="problem-popover-content">
                       {{ row.problemSummary }}
                     </div>
-                    <el-link slot="reference" type="info" :underline="false">
-                      {{ truncateText(row.problemSummary, 20) }}
-                    </el-link>
+                    <template #reference>
+                      <el-link type="info" :underline="false">
+                        {{ truncateText(row.problemSummary, 6) }}
+                      </el-link>
+                    </template>
                   </el-popover>
                 </template>
 
                 <!-- 處理備註 -->
                 <template #column-processingRemarks="{ row }">
                   <latest-remark-preview
-                    :remark="getLatestRemark(row.caseId)"
-                    :remark-count="getRemarkCount(row.caseId)"
+                    :remark="getLatestRemark(row.orderNumber)"
+                    :remark-count="getRemarkCount(row.orderNumber)"
                     :add-remark-text="'添加備註'"
                     @view-timeline="openRemarkTimeline(row)"
                   />
@@ -228,9 +230,9 @@
                 :columns="mainColumns"
                 :sub-table-configs="subTableConfigs"
                 :default-sub-table-index="activeSubTableIndex"
-                row-key="caseId"
+                row-key="orderNumber"
                 sub-row-key="id"
-                title-field="caseId"
+                title-field="orderNumber"
                 :show-toolbar="true"
                 :show-selection-column="true"
                 :border="true"
@@ -290,17 +292,19 @@
                     <div class="problem-popover-content">
                       {{ row.problemSummary }}
                     </div>
-                    <el-link slot="reference" type="info" :underline="false">
-                      {{ truncateText(row.problemSummary, 20) }}
-                    </el-link>
+                    <template #reference>
+                      <el-link type="info" :underline="false">
+                        {{ truncateText(row.problemSummary, 6) }}
+                      </el-link>
+                    </template>
                   </el-popover>
                 </template>
 
                 <!-- 處理備註 -->
                 <template #column-processingRemarks="{ row }">
                   <latest-remark-preview
-                    :remark="getLatestRemark(row.caseId)"
-                    :remark-count="getRemarkCount(row.caseId)"
+                    :remark="getLatestRemark(row.orderNumber)"
+                    :remark-count="getRemarkCount(row.orderNumber)"
                     :add-remark-text="'添加備註'"
                     @view-timeline="openRemarkTimeline(row)"
                   />
@@ -475,9 +479,8 @@
     <remark-timeline-dialog
       :visible.sync="remarkDialogVisible"
       :remarks="currentRemarks"
-      :case-id="currentCaseId"
-      :order-id="currentOrderId"
-      :case-info="currentCaseInfo"
+      :order-id="currentCaseId"
+      :order-info="currentCaseInfo"
       :has-more="hasMoreRemarks"
       :is-loading="loadingRemarks"
       @load-more="loadMoreRemarks"
@@ -698,10 +701,10 @@ export default {
 
       // 表格列配置
       mainColumns: [
-        { prop: "caseId", label: "售後單號", width: 160, sortable: true },
+        { prop: "orderNumber", label: "售後單號", width: 160, sortable: true },
         { prop: "originalOrderId", label: "原訂單編號", width: 160 },
         { prop: "customerName", label: "客戶名稱", width: 120 },
-        { prop: "contactInfo", label: "聯絡方式", width: 150 },
+        { prop: "contactPhone", label: "聯絡方式", width: 150 },
         { prop: "orderTotal", label: "訂單總金額", width: 120, sortable: true },
         { prop: "applyDate", label: "申請日期", width: 120, sortable: true },
         { prop: "priority", label: "優先級", width: 80 },
@@ -759,7 +762,7 @@ export default {
       // 歷史記錄表格
       historyColumns: [
         { prop: "timestamp", label: "時間", width: 180, sortable: true },
-        { prop: "caseId", label: "售後單號", width: 160 },
+        { prop: "orderNumber", label: "售後單號", width: 160 },
         { prop: "user", label: "操作人員", width: 120 },
         { prop: "operationType", label: "操作類型", width: 120 },
         { prop: "field", label: "變更欄位", width: 140 },
@@ -882,32 +885,32 @@ export default {
     },
 
     // 備註相關方法
-    getLatestRemark(caseId) {
-      if (!this.allRemarks[caseId] || this.allRemarks[caseId].length === 0) {
+    getLatestRemark(orderNumber) {
+      if (!this.allRemarks[orderNumber] || this.allRemarks[orderNumber].length === 0) {
         return null;
       }
-      return this.allRemarks[caseId][0]; // 假設已按時間排序，第一個是最新的
+      return this.allRemarks[orderNumber][0]; // 假設已按時間排序，第一個是最新的
     },
 
-    getRemarkCount(caseId) {
-      if (!this.allRemarks[caseId]) {
+    getRemarkCount(orderNumber) {
+      if (!this.allRemarks[orderNumber]) {
         return 0;
       }
-      return this.allRemarks[caseId].length;
+      return this.allRemarks[orderNumber].length;
     },
 
     openRemarkTimeline(row) {
-      this.currentCaseId = row.caseId;
+      this.currentCaseId = row.orderNumber;
       this.currentCaseInfo = {
-        caseNumber: row.caseId,
+        caseNumber: row.orderNumber,
         customerName: row.customerName,
-        contactInfo: row.contactInfo,
+        contactPhone: row.contactPhone,
         problemType: row.problemType
       };
 
       // 如果已經有備註數據，則直接顯示
-      if (this.allRemarks[row.caseId]) {
-        this.currentRemarks = [...this.allRemarks[row.caseId]];
+      if (this.allRemarks[row.orderNumber]) {
+        this.currentRemarks = [...this.allRemarks[row.orderNumber]];
       } else {
         this.currentRemarks = [];
       }
@@ -916,10 +919,10 @@ export default {
 
       // 如果沒有備註數據，則加載
       if (
-        !this.allRemarks[row.caseId] ||
-        this.allRemarks[row.caseId].length === 0
+        !this.allRemarks[row.orderNumber] ||
+        this.allRemarks[row.orderNumber].length === 0
       ) {
-        this.loadRemarks(row.caseId);
+        this.loadRemarks(row.orderNumber);
       }
     },
 
@@ -956,12 +959,12 @@ export default {
       }
     },
 
-    async loadRemarks(caseId) {
+    async loadRemarks(orderNumber) {
       this.loadingRemarks = true;
       try {
-        const response = await AfterSalesService.getRemarks(caseId);
+        const response = await AfterSalesService.getRemarks(orderNumber);
         this.currentRemarks = response.data || [];
-        this.allRemarks[caseId] = [...this.currentRemarks];
+        this.allRemarks[orderNumber] = [...this.currentRemarks];
         this.hasMoreRemarks = response.hasMore || false;
       } catch (error) {
         console.error("獲取備註失敗:", error);
@@ -1006,12 +1009,12 @@ export default {
           this.currentRemarks = [newRemark, ...this.currentRemarks];
 
           // 更新全局備註緩存
-          if (!this.allRemarks[remarkData.caseId]) {
-            this.allRemarks[remarkData.caseId] = [];
+          if (!this.allRemarks[remarkData.orderNumber]) {
+            this.allRemarks[remarkData.orderNumber] = [];
           }
-          this.allRemarks[remarkData.caseId] = [
+          this.allRemarks[remarkData.orderNumber] = [
             newRemark,
-            ...this.allRemarks[remarkData.caseId]
+            ...this.allRemarks[remarkData.orderNumber]
           ];
 
           this.$message.success("備註添加成功");
@@ -1135,17 +1138,17 @@ export default {
     },
 
     // 歷史記錄相關方法
-    async fetchCaseHistoryData(caseId = null, params = null) {
+    async fetchCaseHistoryData(orderNumber = null, params = null) {
       this.loading = true;
       try {
         const queryParams = params || {};
 
-        if (caseId) {
-          queryParams.caseId = caseId;
+        if (orderNumber) {
+          queryParams.orderNumber = orderNumber;
           this.showBackButton = true;
-          this.currentCaseId = caseId;
+          this.currentCaseId = orderNumber;
           this.lastViewedCase = this.caseData.find(
-            item => item.caseId === caseId
+            item => item.orderNumber === orderNumber
           );
         } else {
           this.showBackButton = false;
@@ -1165,7 +1168,7 @@ export default {
         this.historyData = response.data || [];
 
         // 若是初次加載或特定售後單的記錄，則更新 allHistoryData
-        if (caseId || !Object.keys(params || {}).length) {
+        if (orderNumber || !Object.keys(params || {}).length) {
           this.allHistoryData = [...this.historyData];
           this.isHistoryFiltering = false;
         } else {
@@ -1202,7 +1205,7 @@ export default {
       }
 
       if (this.currentCaseId) {
-        params.caseId = this.currentCaseId;
+        params.orderNumber = this.currentCaseId;
       }
 
       // 檢查是否和上次搜尋參數相同，避免重複請求
@@ -1282,10 +1285,10 @@ export default {
     handleCreateCase() {
       this.isEditMode = false;
       this.currentEditCase = {
-        caseId: "", // 新建時由後端生成
+        orderNumber: "", // 新建時由後端生成
         originalOrderId: "",
         customerName: "",
-        contactInfo: "",
+        contactPhone: "",
         orderTotal: 0,
         applyDate: new Date(),
         priority: "中", // 默認中優先級
@@ -1337,12 +1340,12 @@ export default {
     handleEditSubRow(row, parentRow, subTableIndex) {
       if (subTableIndex === 0) {
         // 問題反應詳情
-        this.currentCaseId = parentRow.caseId;
+        this.currentCaseId = parentRow.orderNumber;
         this.currentEditProblemDetail = JSON.parse(JSON.stringify(row));
         this.problemDetailsDialogVisible = true;
       } else if (subTableIndex === 1) {
         // 退貨/換貨/退款處理
-        this.currentCaseId = parentRow.caseId;
+        this.currentCaseId = parentRow.orderNumber;
         this.currentEditReturnExchange = JSON.parse(JSON.stringify(row));
         this.returnExchangeDialogVisible = true;
       }
@@ -1383,7 +1386,7 @@ export default {
     // 其他功能
     viewCaseHistory(row) {
       this.activeTab = "case-history";
-      this.fetchCaseHistoryData(row.caseId);
+      this.fetchCaseHistoryData(row.orderNumber);
     },
 
     backToCaseList() {
@@ -1402,7 +1405,7 @@ export default {
               const cells = rows[i].getElementsByTagName("td");
               if (
                 cells.length > 0 &&
-                cells[0].textContent === this.lastViewedCase.caseId
+                cells[0].textContent === this.lastViewedCase.orderNumber
               ) {
                 // 滾動到目標行
                 rows[i].scrollIntoView({ behavior: "smooth", block: "center" });
@@ -1500,7 +1503,7 @@ export default {
             return;
           }
 
-          const caseIds = this.selectedRows.map(row => row.caseId);
+          const caseIds = this.selectedRows.map(row => row.orderNumber);
           AfterSalesService.batchUpdateStatus({
             caseIds,
             status: value
@@ -1535,7 +1538,7 @@ export default {
             return;
           }
 
-          const caseIds = this.selectedRows.map(row => row.caseId);
+          const caseIds = this.selectedRows.map(row => row.orderNumber);
           AfterSalesService.batchAssignStaff({
             caseIds,
             processor: value
@@ -1562,7 +1565,7 @@ export default {
           break;
         case "viewFiles":
           // 獲取問題詳情中的文件並查看
-          const problemDetails = this.getProblemDetails(row.caseId);
+          const problemDetails = this.getProblemDetails(row.orderNumber);
           if (problemDetails && problemDetails.evidenceFiles) {
             this.viewFiles(problemDetails.evidenceFiles);
           }
@@ -1584,7 +1587,7 @@ export default {
     editProblemDetails(row) {
       // 假設第一個問題詳情，實際上可能需要選擇
       if (row.problemDetails && row.problemDetails.length > 0) {
-        this.currentCaseId = row.caseId;
+        this.currentCaseId = row.orderNumber;
         this.currentEditProblemDetail = JSON.parse(
           JSON.stringify(row.problemDetails[0])
         );
@@ -1595,8 +1598,8 @@ export default {
     },
 
     // 獲取問題詳情(用於顯示檔案)
-    getProblemDetails(caseId) {
-      const caseItem = this.caseData.find(item => item.caseId === caseId);
+    getProblemDetails(orderNumber) {
+      const caseItem = this.caseData.find(item => item.orderNumber === orderNumber);
       if (
         caseItem &&
         caseItem.problemDetails &&
@@ -1617,7 +1620,7 @@ export default {
     // 編輯退換貨明細
     editReturnDetails(row) {
       if (row.returnExchangeDetails && row.returnExchangeDetails.length > 0) {
-        this.currentCaseId = row.caseId;
+        this.currentCaseId = row.orderNumber;
         this.currentEditReturnExchange = JSON.parse(
           JSON.stringify(row.returnExchangeDetails[0])
         );
@@ -1644,7 +1647,7 @@ export default {
 
     printCase(row) {
       // 打印功能
-      this.$message.info("準備打印售後案件: " + row.caseId);
+      this.$message.info("準備打印售後案件: " + row.orderNumber);
       // 在實際應用中，這裡可能會調用打印API或打開打印預覽窗口
     },
 
@@ -1656,7 +1659,7 @@ export default {
       })
         .then(() => {
           AfterSalesService.updateCaseStatus({
-            caseId: row.caseId,
+            orderNumber: row.orderNumber,
             status: "已完成"
           })
             .then(response => {
@@ -1674,7 +1677,7 @@ export default {
 
     cancelCase(row) {
       AfterSalesService.updateCaseStatus({
-        caseId: row.caseId,
+        orderNumber: row.orderNumber,
         status: "已取消"
       })
         .then(response => {

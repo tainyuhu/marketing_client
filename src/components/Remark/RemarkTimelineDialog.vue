@@ -70,13 +70,23 @@
     ></remark-list>
 
     <!-- 新增備註表單 -->
-    <add-remark-form
-      v-if="showAddRemark"
-      :submitting="submitting"
-      @cancel="cancelAddRemark"
-      @submit="submitRemark"
-      @preview-image="handleFilePreview"
-    ></add-remark-form>
+    <el-dialog
+      title="新增備註"
+      :visible.sync="showAddRemark"
+      custom-class="add-remark-dialog"
+      width="500px"
+      :append-to-body="true"
+      :close-on-click-modal="false"
+      :show-close="true"
+      @closed="cancelAddRemark"
+    >
+      <add-remark-form
+        :submitting="submitting"
+        @cancel="cancelAddRemark"
+        @submit="submitRemark"
+        @preview-image="handleFilePreview"
+      ></add-remark-form>
+    </el-dialog>
 
     <!-- 圖片查看器 -->
     <image-viewer
@@ -147,7 +157,7 @@ export default {
 
     orderId: {
       type: [Number, String],
-      required: true
+      default: null
     },
 
     orderInfo: {
@@ -340,6 +350,22 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+::v-deep .add-remark-dialog {
+  margin: 0 !important;
+
+  .el-dialog {
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .el-dialog__header {
+    background: #f8f8f8;
+  }
+
+  .el-dialog__body {
+    padding: 0;
+  }
+}
 .remark-timeline-dialog {
   margin: 0 !important;
   position: relative;

@@ -9,6 +9,7 @@
         <div class="toolbar-right">
           <!-- 批量更新狀態按鈕 -->
           <el-button
+            v-if="showBatchUpdateButton"
             type="primary"
             plain
             size="small"
@@ -82,7 +83,7 @@
         :header-cell-style="{ background: '#f5f7fa', color: '#606266' }"
       >
         <!-- 展開列 -->
-        <el-table-column type="expand">
+        <el-table-column v-if="showSubTable" type="expand">
           <template slot-scope="scope">
             <sub-table
               :data="scope.row.details || []"
@@ -384,6 +385,16 @@ export default {
         { value: 1, label: "已處理", type: "success" },
         { value: 2, label: "處理中", type: "warning" }
       ]
+    },
+    //是否顯示子表格
+    showSubTable: {
+      type: Boolean,
+      default: true
+    },
+    // 是否顯示批量更新按鈕
+    showBatchUpdateButton: {
+      type: Boolean,
+      default: true
     },
     // 預設圖片配置
     defaultImageConfig: {

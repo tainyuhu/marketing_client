@@ -1,14 +1,6 @@
 <!-- components/Remark/AddRemarkForm.vue -->
 <template>
   <div class="add-remark-container">
-    <div class="form-header">
-      <div class="back-button" @click="$emit('cancel')">
-        <i class="el-icon-arrow-left"></i>
-      </div>
-      <h3>新增備註</h3>
-      <div></div>
-    </div>
-
     <el-form
       :model="remarkForm"
       ref="remarkForm"
@@ -180,21 +172,11 @@ export default {
 
 <style lang="scss" scoped>
 .add-remark-container {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 100%;
-  height: 500px; /* 固定高度 */
-  max-height: 90vh; /* 限制最大高度不超過視窗高度的70% */
   background: #ffffff;
-  z-index: 20;
   display: flex;
   flex-direction: column;
-  transition: all 0.3s ease;
-  border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-  overflow: hidden;
+  width: 100%;
+  min-height: 400px;
 
   .form-header {
     display: flex;
@@ -225,6 +207,8 @@ export default {
     overflow-y: auto;
     padding: 16px;
     flex: 1;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
 
     .upload-preview-wrapper {
       margin-bottom: 24px;
@@ -300,6 +284,65 @@ export default {
         gap: 12px;
       }
     }
+  }
+}
+
+// 對話框樣式
+::v-deep .el-dialog__body {
+  padding: 0 !important;
+}
+
+// textarea樣式優化
+::v-deep .el-textarea__inner {
+  resize: none;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 120px;
+}
+
+// 表單元素間距
+::v-deep .el-form-item {
+  margin-bottom: 20px;
+}
+
+// 優化上傳組件樣式
+::v-deep .el-upload--picture-card {
+  border-radius: 8px;
+  border: 1px dashed #d9d9d9;
+  background-color: #fafafa;
+  transition: border-color 0.3s;
+
+  &:hover {
+    border-color: #1890ff;
+  }
+
+  i {
+    color: #8c8c8c;
+    font-size: 28px;
+  }
+}
+
+// 優化複選框樣式
+::v-deep .el-checkbox__inner {
+  border-radius: 4px;
+}
+
+// 按鈕樣式優化
+::v-deep .el-button--primary {
+  background-color: #1890ff;
+  border-color: #1890ff;
+
+  &:hover,
+  &:focus {
+    background-color: #40a9ff;
+    border-color: #40a9ff;
+  }
+
+  &:active {
+    background-color: #096dd9;
+    border-color: #096dd9;
   }
 }
 </style>

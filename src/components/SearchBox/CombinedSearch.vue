@@ -374,7 +374,7 @@ export default {
 
     .time-search-section {
       @media (min-width: 768px) {
-        min-width: 280px;
+        min-width: 220px;
       }
       width: 100%;
     }

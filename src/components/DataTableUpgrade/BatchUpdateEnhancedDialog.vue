@@ -775,7 +775,7 @@ export default {
 <style lang="scss" scoped>
 ::v-deep .list-dialog {
   .el-dialog__header {
-    background: linear-gradient(135deg, #1264b7, #5cadff);
+    background: linear-gradient(135deg, #1989fa, #5cadff) !important;
     padding: 15px 20px;
     border-radius: 4px 4px 0 0;
     margin-right: 0;

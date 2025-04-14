@@ -5,6 +5,7 @@ Vue.use(Router);
 
 /* Layout */
 import Layout from "@/layout";
+import ShopLayout from "@/layout/ShopLayout";
 
 /**
  * Note: sub-menu only appear when route children.length >= 1
@@ -237,10 +238,74 @@ export const asyncRoutes = [
     ]
   },
   {
+    path: "/staffshopping",
+    component: ShopLayout,
+    redirect: "/staffshopping/staffindex",
+    name: "staffshopping",
+    meta: {
+      title: "員工商城",
+      icon: "wmsview",
+      perms: ["wmsview"]
+    },
+    children: [
+      {
+        path: "staffindex",
+        name: "staffindex",
+        component: () => import("@/views/staffshopping/staffindex/index"),
+        meta: {
+          title: "首頁",
+          icon: "staffindex_manage",
+          perms: ["staffindex_manage"]
+        }
+      },
+      {
+        path: "activity/:id",
+        name: "activityDetail",
+        component: () => import("@/views/staffshopping/activity/index"),
+        meta: {
+          title: "活動詳情",
+          activeMenu: "/staffshopping/staffindex",
+          hidden: true
+        }
+      },
+      {
+        path: "product/:id",
+        name: "ProductDetail",
+        component: () =>
+          import("@/views/staffshopping/productdetail/index.vue"),
+        meta: {
+          title: "商品詳情",
+          activeMenu: "/staffshopping/staffindex",
+          hidden: true
+        }
+      },
+      {
+        path: "cart",
+        name: "shoppingCart",
+        component: () => import("@/views/staffshopping/shoppingcart/index"),
+        meta: {
+          title: "購物車",
+          activeMenu: "/staffshopping/staffindex",
+          hidden: true
+        }
+      },
+      {
+        path: "orderlist",
+        name: "shoppingOrder",
+        component: () => import("@/views/staffshopping/shoppingorder/index"),
+        meta: {
+          title: "個人訂單管理",
+          perms: ["shoppingorder_manage"]
+        }
+      }
+    ]
+  },
+  {
     path: "/wms",
     component: Layout,
     redirect: "/wms/inventory",
     name: "wms",
+    hidden: true,
     meta: {
       title: "總倉管理",
       icon: "wmsview",
@@ -345,6 +410,16 @@ export const asyncRoutes = [
           title: "售後服務中心",
           icon: "shopping-cart",
           perms: ["aftersales_manage"]
+        }
+      },
+      {
+        path: "repayment",
+        name: "repayment",
+        component: () => import("@/views/wms/repayment/index"),
+        meta: {
+          title: "還款作業管理",
+          icon: "shopping-cart",
+          perms: ["repayment_manage"]
         }
       },
       {

@@ -170,7 +170,7 @@ export default {
       type: Object,
       default: () => ({})
     },
-    caseId: {
+    orderNumber: {
       type: String,
       default: ""
     },
@@ -189,7 +189,7 @@ export default {
       dialogVisible: false,
       formData: {
         id: null,
-        caseId: "",
+        orderNumber: "",
         problemType: "商品問題",
         productId: "",
         productName: "",
@@ -257,8 +257,8 @@ export default {
         this.formData = JSON.parse(JSON.stringify(this.data));
 
         // 確保caseId
-        if (!this.formData.caseId && this.caseId) {
-          this.formData.caseId = this.caseId;
+        if (!this.formData.orderNumber && this.orderNumber) {
+          this.formData.orderNumber = this.orderNumber;
         }
 
         // 處理檔案列表
@@ -289,7 +289,7 @@ export default {
     resetForm() {
       this.formData = {
         id: null,
-        caseId: this.caseId,
+        orderNumber: this.orderNumber,
         problemType: "商品問題",
         productId: "",
         productName: "",

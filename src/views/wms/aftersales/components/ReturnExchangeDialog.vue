@@ -252,7 +252,7 @@ export default {
       type: Object,
       default: () => ({})
     },
-    caseId: {
+    orderNumber: {
       type: String,
       default: ""
     },
@@ -267,7 +267,7 @@ export default {
       dialogVisible: false,
       formData: {
         id: null,
-        caseId: "",
+        orderNumber: "",
         processingId: "",
         processingType: "退貨",
         returnExchangeStatus: "待處理",
@@ -388,9 +388,9 @@ export default {
         // 深度複製避免相互影響
         this.formData = JSON.parse(JSON.stringify(this.data));
 
-        // 確保 caseId
-        if (!this.formData.caseId && this.caseId) {
-          this.formData.caseId = this.caseId;
+        // 確保 orderNumber
+        if (!this.formData.orderNumber && this.orderNumber) {
+          this.formData.orderNumber = this.orderNumber;
         }
 
         // 確保 items 數組初始化
@@ -406,7 +406,7 @@ export default {
     resetForm() {
       this.formData = {
         id: null,
-        caseId: this.caseId,
+        orderNumber: this.orderNumber,
         processingId: "",
         processingType: "退貨",
         returnExchangeStatus: "待處理",

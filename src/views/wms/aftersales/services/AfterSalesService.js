@@ -4,10 +4,10 @@ import { formatDate } from "@/utils/date";
 // 模擬資料 - 售後案件資料
 const mockCaseData = [
   {
-    caseId: "AS-20250327-001",
+    orderNumber: "AS-20250327-001",
     originalOrderId: "SO-20250317-001",
     customerName: "王小明",
-    contactInfo: "0912-345-678",
+    contactPhone: "0912-345-678",
     orderTotal: 3580,
     applyDate: "2025-03-27",
     priority: "高",
@@ -69,7 +69,7 @@ const mockHistoryData = [
   {
     id: "HIST-001",
     timestamp: "2025-03-27 10:15:30",
-    caseId: "AS-20250327-001",
+    orderNumber: "AS-20250327-001",
     user: "系統",
     operationType: "create",
     field: "售後案件",
@@ -79,7 +79,7 @@ const mockHistoryData = [
   {
     id: "HIST-002",
     timestamp: "2025-03-27 11:05:22",
-    caseId: "AS-20250327-001",
+    orderNumber: "AS-20250327-001",
     user: "李客服",
     operationType: "update",
     field: "處理人員",
@@ -89,7 +89,7 @@ const mockHistoryData = [
   {
     id: "HIST-003",
     timestamp: "2025-03-27 14:30:45",
-    caseId: "AS-20250327-001",
+    orderNumber: "AS-20250327-001",
     user: "陳經理",
     operationType: "status",
     field: "處理狀態",
@@ -99,7 +99,7 @@ const mockHistoryData = [
   {
     id: "HIST-004",
     timestamp: "2025-03-27 14:32:18",
-    caseId: "AS-20250327-001",
+    orderNumber: "AS-20250327-001",
     user: "陳經理",
     operationType: "remark",
     field: "備註",
@@ -113,7 +113,7 @@ const mockRemarks = {
   "AS-20250327-001": [
     {
       id: "RMK-001",
-      caseId: "AS-20250327-001",
+      orderNumber: "AS-20250327-001",
       createdBy: "陳經理",
       createdAt: "2025-03-27 14:32:18",
       content: "已與客戶電話聯繫，確認退貨方式",
@@ -121,7 +121,7 @@ const mockRemarks = {
     },
     {
       id: "RMK-002",
-      caseId: "AS-20250327-001",
+      orderNumber: "AS-20250327-001",
       createdBy: "陳經理",
       createdAt: "2025-03-27 16:45:10",
       content: "已發送退貨指引郵件給客戶，請客戶三天內安排寄回",
@@ -153,7 +153,7 @@ const filterCaseData = (data, params) => {
     const searchLower = params.search.toLowerCase();
     filtered = filtered.filter(
       item =>
-        item.caseId.toLowerCase().includes(searchLower) ||
+        item.orderNumber.toLowerCase().includes(searchLower) ||
         item.originalOrderId.toLowerCase().includes(searchLower) ||
         item.customerName.toLowerCase().includes(searchLower)
     );
@@ -177,15 +177,15 @@ const filterHistoryData = (data, params) => {
 
   let filtered = [...data];
 
-  if (params.caseId) {
-    filtered = filtered.filter(item => item.caseId === params.caseId);
+  if (params.orderNumber) {
+    filtered = filtered.filter(item => item.orderNumber === params.orderNumber);
   }
 
   if (params.search) {
     const searchLower = params.search.toLowerCase();
     filtered = filtered.filter(
       item =>
-        item.caseId.toLowerCase().includes(searchLower) ||
+        item.orderNumber.toLowerCase().includes(searchLower) ||
         item.user.toLowerCase().includes(searchLower) ||
         (item.afterValue && item.afterValue.toLowerCase().includes(searchLower))
     );
@@ -243,7 +243,7 @@ const AfterSalesService = {
       // 準備新案件數據
       const newCase = {
         ...caseData,
-        caseId: newCaseId,
+        orderNumber: newCaseId,
         lastUpdateTime: formatDate(now, "YYYY-MM-DD HH:mm:ss")
       };
 
@@ -254,7 +254,7 @@ const AfterSalesService = {
       mockHistoryData.unshift({
         id: `HIST-${mockHistoryData.length + 1}`,
         timestamp: formatDate(now, "YYYY-MM-DD HH:mm:ss"),
-        caseId: newCaseId,
+        orderNumber: newCaseId,
         user: caseData.processor || "系統",
         operationType: "create",
         field: "售後案件",
@@ -273,14 +273,14 @@ const AfterSalesService = {
   updateCase: async caseData => {
     try {
       // 在這裡可以替換為實際的API調用
-      // return await axios.put(`/api/aftersales/cases/${caseData.caseId}`, caseData);
+      // return await axios.put(`/api/aftersales/cases/${caseData.orderNumber}`, caseData);
 
       // 模擬API延遲
       await delay(1000);
 
       // 查找指定的案件
       const index = mockCaseData.findIndex(
-        item => item.caseId === caseData.caseId
+        item => item.orderNumber === caseData.orderNumber
       );
 
       if (index === -1) {
@@ -305,7 +305,7 @@ const AfterSalesService = {
         mockHistoryData.unshift({
           id: `HIST-${mockHistoryData.length + 1}`,
           timestamp: formatDate(now, "YYYY-MM-DD HH:mm:ss"),
-          caseId: caseData.caseId,
+          orderNumber: caseData.orderNumber,
           user: caseData.processor || "系統",
           operationType: "status",
           field: "處理狀態",
@@ -325,14 +325,14 @@ const AfterSalesService = {
   updateCaseStatus: async statusData => {
     try {
       // 在這裡可以替換為實際的API調用
-      // return await axios.patch(`/api/aftersales/cases/${statusData.caseId}/status`, statusData);
+      // return await axios.patch(`/api/aftersales/cases/${statusData.orderNumber}/status`, statusData);
 
       // 模擬API延遲
       await delay(800);
 
       // 查找指定的案件
       const index = mockCaseData.findIndex(
-        item => item.caseId === statusData.caseId
+        item => item.orderNumber === statusData.orderNumber
       );
 
       if (index === -1) {
@@ -353,7 +353,7 @@ const AfterSalesService = {
       mockHistoryData.unshift({
         id: `HIST-${mockHistoryData.length + 1}`,
         timestamp: formatDate(new Date(), "YYYY-MM-DD HH:mm:ss"),
-        caseId: statusData.caseId,
+        orderNumber: statusData.orderNumber,
         user: mockCaseData[index].processor || "系統",
         operationType: "status",
         field: "處理狀態",
@@ -362,7 +362,7 @@ const AfterSalesService = {
       });
 
       return mockResponse(
-        { caseId: statusData.caseId, status: statusData.status },
+        { orderNumber: statusData.orderNumber, status: statusData.status },
         true,
         "案件狀態更新成功"
       );
@@ -414,16 +414,16 @@ const AfterSalesService = {
   },
 
   // 獲取特定案件的備註
-  getRemarks: async caseId => {
+  getRemarks: async orderNumber => {
     try {
       // 在這裡可以替換為實際的API調用
-      // return await axios.get(`/api/aftersales/cases/${caseId}/remarks`);
+      // return await axios.get(`/api/aftersales/cases/${orderNumber}/remarks`);
 
       // 模擬API延遲
       await delay(600);
 
       // 檢查該案件是否有備註
-      const remarks = mockRemarks[caseId] || [];
+      const remarks = mockRemarks[orderNumber] || [];
 
       // 按時間排序 (新到舊)
       const sortedRemarks = remarks.sort(
@@ -441,10 +441,10 @@ const AfterSalesService = {
   },
 
   // 獲取更多備註 (分頁)
-  getMoreRemarks: async (caseId, offset) => {
+  getMoreRemarks: async (orderNumber, offset) => {
     try {
       // 在這裡可以替換為實際的API調用
-      // return await axios.get(`/api/aftersales/cases/${caseId}/remarks?offset=${offset}`);
+      // return await axios.get(`/api/aftersales/cases/${orderNumber}/remarks?offset=${offset}`);
 
       // 模擬API延遲
       await delay(600);
@@ -464,7 +464,7 @@ const AfterSalesService = {
   addRemark: async remarkData => {
     try {
       // 在這裡可以替換為實際的API調用
-      // return await axios.post(`/api/aftersales/cases/${remarkData.caseId}/remarks`, remarkData);
+      // return await axios.post(`/api/aftersales/cases/${remarkData.orderNumber}/remarks`, remarkData);
 
       // 模擬API延遲
       await delay(700);
@@ -473,7 +473,7 @@ const AfterSalesService = {
       const now = new Date();
       const newRemark = {
         id: `RMK-${Date.now()}`,
-        caseId: remarkData.caseId,
+        orderNumber: remarkData.orderNumber,
         createdBy: remarkData.createdBy || "當前用戶",
         createdAt: formatDate(now, "YYYY-MM-DD HH:mm:ss"),
         content: remarkData.content,
@@ -481,18 +481,18 @@ const AfterSalesService = {
       };
 
       // 檢查該案件是否已有備註
-      if (!mockRemarks[remarkData.caseId]) {
-        mockRemarks[remarkData.caseId] = [];
+      if (!mockRemarks[remarkData.orderNumber]) {
+        mockRemarks[remarkData.orderNumber] = [];
       }
 
       // 添加新備註
-      mockRemarks[remarkData.caseId].unshift(newRemark);
+      mockRemarks[remarkData.orderNumber].unshift(newRemark);
 
       // 添加歷史記錄
       mockHistoryData.unshift({
         id: `HIST-${mockHistoryData.length + 1}`,
         timestamp: newRemark.createdAt,
-        caseId: remarkData.caseId,
+        orderNumber: remarkData.orderNumber,
         user: newRemark.createdBy,
         operationType: "remark",
         field: "備註",
@@ -502,7 +502,7 @@ const AfterSalesService = {
 
       // 更新案件的最後更新時間
       const caseIndex = mockCaseData.findIndex(
-        item => item.caseId === remarkData.caseId
+        item => item.orderNumber === remarkData.orderNumber
       );
       if (caseIndex !== -1) {
         mockCaseData[caseIndex].lastUpdateTime = newRemark.createdAt;
@@ -528,11 +528,11 @@ const AfterSalesService = {
       let foundRemark = null;
       let remarkCaseId = null;
 
-      Object.entries(mockRemarks).forEach(([caseId, remarks]) => {
+      Object.entries(mockRemarks).forEach(([orderNumber, remarks]) => {
         const index = remarks.findIndex(r => r.id === remarkData.id);
         if (index !== -1) {
           foundRemark = remarks[index];
-          remarkCaseId = caseId;
+          remarkCaseId = orderNumber;
         }
       });
 
@@ -551,7 +551,7 @@ const AfterSalesService = {
       mockHistoryData.unshift({
         id: `HIST-${mockHistoryData.length + 1}`,
         timestamp: foundRemark.updatedAt,
-        caseId: remarkCaseId,
+        orderNumber: remarkCaseId,
         user: foundRemark.createdBy,
         operationType: "update",
         field: "備註",
@@ -579,12 +579,12 @@ const AfterSalesService = {
       let deletedRemark = null;
       let remarkCaseId = null;
 
-      Object.entries(mockRemarks).forEach(([caseId, remarks]) => {
+      Object.entries(mockRemarks).forEach(([orderNumber, remarks]) => {
         const index = remarks.findIndex(r => r.id === remarkId);
         if (index !== -1) {
           deletedRemark = remarks[index];
-          remarkCaseId = caseId;
-          mockRemarks[caseId].splice(index, 1);
+          remarkCaseId = orderNumber;
+          mockRemarks[orderNumber].splice(index, 1);
         }
       });
 
@@ -596,7 +596,7 @@ const AfterSalesService = {
       mockHistoryData.unshift({
         id: `HIST-${mockHistoryData.length + 1}`,
         timestamp: formatDate(new Date(), "YYYY-MM-DD HH:mm:ss"),
-        caseId: remarkCaseId,
+        orderNumber: remarkCaseId,
         user: deletedRemark.createdBy,
         operationType: "delete",
         field: "備註",
@@ -622,7 +622,7 @@ const AfterSalesService = {
 
       // 查找案件
       const caseIndex = mockCaseData.findIndex(
-        item => item.caseId === detailData.caseId
+        item => item.orderNumber === detailData.orderNumber
       );
 
       if (caseIndex === -1) {
@@ -671,7 +671,7 @@ const AfterSalesService = {
 
       // 查找案件
       const caseIndex = mockCaseData.findIndex(
-        item => item.caseId === returnData.caseId
+        item => item.orderNumber === returnData.orderNumber
       );
 
       if (caseIndex === -1) {
@@ -723,9 +723,9 @@ const AfterSalesService = {
       const updatedCases = [];
 
       // 批量更新狀態
-      caseIds.forEach(caseId => {
+      caseIds.forEach(orderNumber => {
         const caseIndex = mockCaseData.findIndex(
-          item => item.caseId === caseId
+          item => item.orderNumber === orderNumber
         );
 
         if (caseIndex !== -1) {
@@ -742,7 +742,7 @@ const AfterSalesService = {
           mockHistoryData.unshift({
             id: `HIST-${mockHistoryData.length + 1}`,
             timestamp: now,
-            caseId: caseId,
+            orderNumber: orderNumber,
             user: mockCaseData[caseIndex].processor || "系統",
             operationType: "status",
             field: "處理狀態",
@@ -780,9 +780,9 @@ const AfterSalesService = {
       const updatedCases = [];
 
       // 批量更新處理人員
-      caseIds.forEach(caseId => {
+      caseIds.forEach(orderNumber => {
         const caseIndex = mockCaseData.findIndex(
-          item => item.caseId === caseId
+          item => item.orderNumber === orderNumber
         );
 
         if (caseIndex !== -1) {
@@ -799,7 +799,7 @@ const AfterSalesService = {
           mockHistoryData.unshift({
             id: `HIST-${mockHistoryData.length + 1}`,
             timestamp: now,
-            caseId: caseId,
+            orderNumber: orderNumber,
             user: "系統",
             operationType: "update",
             field: "處理人員",
