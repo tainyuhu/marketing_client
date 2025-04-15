@@ -80,7 +80,7 @@
 </template>
 
 <script>
-import { get_line_login_url} from "@/api/line_login";
+import { get_line_login_url } from "@/api/line_login";
 export default {
   name: "Login",
   data() {
@@ -146,28 +146,25 @@ export default {
       });
     },
     handleLineLogin() {
-      // this.$router.replace("/binding");
-        return new Promise((resolve, reject) => {
-            get_line_login_url()
-            .then(response => {
-              const { data } = response;
-              
-              // 成功取得 Line 登入網址
-              const login_url = data['login_url']; // 取得 Line 登入網址
-              if(login_url) {
-                window.location.href = login_url;
-              }
-              else {
-                throw new Error('No login URL received');
-              }
-              
-              resolve(data);
-            })
-            .catch(error => {
-              reject(error);
-            });
-        });
-      
+      return new Promise((resolve, reject) => {
+        get_line_login_url()
+          .then(response => {
+            const { data } = response;
+
+            // 成功取得 Line 登入網址
+            const login_url = data["login_url"]; // 取得 Line 登入網址
+            if (login_url) {
+              window.location.href = login_url;
+            } else {
+              throw new Error("No login URL received");
+            }
+
+            resolve(data);
+          })
+          .catch(error => {
+            reject(error);
+          });
+      });
     },
     handleForgetPassword() {
       sessionStorage.setItem("resetPasswordAccess", "true");

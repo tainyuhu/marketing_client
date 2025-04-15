@@ -16,7 +16,7 @@
             type="text"
             class="search-input"
             v-model="searchQuery"
-            placeholder="搜索商品..."
+            placeholder="請輸入關鍵字搜尋"
             @keyup.enter="handleSearch"
           />
           <i
@@ -61,11 +61,16 @@
             <i class="el-icon-caret-bottom" />
           </div>
           <el-dropdown-menu slot="dropdown" class="user-dropdown">
-            <router-link to="/">
+            <router-link to="/staffshopping/staffindex">
               <el-dropdown-item>首頁</el-dropdown-item>
             </router-link>
-            <router-link to="/staffshopping/orders">
+            <router-link to="/staffshopping/orderlist">
               <el-dropdown-item>我的訂單</el-dropdown-item>
+            </router-link>
+            <router-link to="/profile/account">
+              <el-dropdown-item divided>
+                帳號管理
+              </el-dropdown-item>
             </router-link>
             <router-link to="/changepassword">
               <el-dropdown-item divided>修改密碼</el-dropdown-item>
@@ -217,7 +222,7 @@ export default {
 
     // 跳轉到首頁
     goToHome() {
-      this.$router.push("/staffshopping");
+      this.$router.push("/staffshopping/staffindex");
     },
 
     // 處理搜索

@@ -93,7 +93,7 @@ export const constantRoutes = [
 
   {
     path: "/changepassword",
-    component: Layout,
+    component: ShopLayout,
     redirect: "/changepassword",
     name: "ChangePW",
     meta: { title: "修改密碼", icon: "tree" },
@@ -171,7 +171,7 @@ export const asyncRoutes = [
   },
   {
     path: "/profile",
-    component: Layout,
+    component: ShopLayout,
     redirect: "/profile",
     children: [
       {

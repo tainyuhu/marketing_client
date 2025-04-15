@@ -22,6 +22,14 @@ export function getInfo() {
   });
 }
 
+export function updateUserProfile(data) {
+  return request({
+    url: "/system/user/update_profile/",
+    method: "put",
+    data
+  });
+}
+
 export function getUserList(query) {
   return request({
     url: "/system/user/",
@@ -70,11 +78,11 @@ export function changePassword(data) {
 }
 
 // 發送驗證碼
-export function sendVerificationCode(data) {
+export function sendVerificationCode(employeeId) {
   return request({
     url: "/system/reset-password/send-code/",
     method: "post",
-    params: data
+    data: { employeeId } // 改用 data 而不是 params
   });
 }
 
@@ -90,7 +98,7 @@ export function verifyCode(data) {
 // 重設密碼
 export function resetPassword(data) {
   return request({
-    url: "/system/user/reset/",
+    url: "/system/reset-password/reset-password/", // 修改為正確的路徑
     method: "post",
     data
   });

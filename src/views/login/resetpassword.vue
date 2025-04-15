@@ -114,6 +114,7 @@
 <script>
 import { mapActions } from "vuex";
 import { validatePassword } from "@/utils/validate";
+import { sendVerificationCode, verifyCode, resetPassword } from "@/api/user";
 
 export default {
   name: "ResetPassword",
@@ -130,6 +131,7 @@ export default {
       loading: false,
       countdown: 0,
       timer: null,
+      resetToken: "",
       formData: {
         employeeId: "",
         verificationCode: "",
@@ -171,7 +173,6 @@ export default {
     }
   },
   methods: {
-    ...mapActions(["sendVerificationCode", "verifyCode", "resetPassword"]),
     startCountdown() {
       this.countdown = 60;
       if (this.timer) {
@@ -187,13 +188,26 @@ export default {
     },
     async handleStep1() {
       try {
-        await this.$refs.resetForm.validate();
+        await this.$refs.resetForm.validate(valid => {
+          if (!valid) {
+            throw new Error("請檢查輸入是否正確");
+          }
+        });
+
         this.loading = true;
-        await this.sendVerificationCode(this.formData.employeeId);
-        this.currentStep = 2;
-        this.startCountdown();
-        this.$message.success("驗證碼已發送至您的LINE帳號");
+
+        // 發送驗證碼
+        const response = await sendVerificationCode(this.formData.employeeId);
+
+        if (response.data.success) {
+          this.currentStep = 2;
+          this.startCountdown();
+          this.$message.success("驗證碼已發送至您的LINE帳號");
+        } else {
+          throw new Error(response.data.message || "發送失敗");
+        }
       } catch (error) {
+        console.error("發送驗證碼錯誤:", error);
         this.$message.error(error.message || "發送失敗，請重試");
       } finally {
         this.loading = false;
@@ -201,15 +215,30 @@ export default {
     },
     async handleStep2() {
       try {
-        await this.$refs.resetForm.validate();
+        await this.$refs.resetForm.validate(valid => {
+          if (!valid) {
+            throw new Error("請檢查輸入是否正確");
+          }
+        });
+
         this.loading = true;
-        await this.verifyCode({
+
+        // 驗證碼確認
+        const response = await verifyCode({
           employeeId: this.formData.employeeId,
           code: this.formData.verificationCode
         });
-        this.currentStep = 3;
-        this.$message.success("驗證成功");
+
+        if (response.data.success) {
+          // 保存重設密碼所需的 token
+          this.resetToken = response.data.token;
+          this.currentStep = 3;
+          this.$message.success("驗證成功");
+        } else {
+          throw new Error(response.data.message || "驗證失敗");
+        }
       } catch (error) {
+        console.error("驗證碼確認錯誤:", error);
         this.$message.error(error.message || "驗證失敗，請重試");
       } finally {
         this.loading = false;
@@ -217,18 +246,30 @@ export default {
     },
     async handleStep3() {
       try {
-        await this.$refs.resetForm.validate();
-        this.loading = true;
-        await this.resetPassword({
-          employeeId: this.formData.employeeId,
-          password: this.formData.newPassword,
-          code: this.formData.verificationCode
+        await this.$refs.resetForm.validate(valid => {
+          if (!valid) {
+            throw new Error("請檢查輸入是否正確");
+          }
         });
-        this.$message.success("密碼重設成功");
-        setTimeout(() => {
-          this.backToLogin();
-        }, 1500);
+
+        this.loading = true;
+
+        // 重設密碼
+        const response = await resetPassword({
+          token: this.resetToken,
+          newPassword: this.formData.newPassword
+        });
+
+        if (response.data.success) {
+          this.$message.success("密碼重設成功");
+          setTimeout(() => {
+            this.backToLogin();
+          }, 1500);
+        } else {
+          throw new Error(response.data.message || "重設失敗");
+        }
       } catch (error) {
+        console.error("重設密碼錯誤:", error);
         this.$message.error(error.message || "重設失敗，請重試");
       } finally {
         this.loading = false;
