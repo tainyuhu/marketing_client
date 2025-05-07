@@ -285,7 +285,7 @@ export const asyncRoutes = [
         }
       },
       {
-        path: "cart",
+        path: "checkout",
         name: "shoppingCart",
         component: () => import("@/views/staffshopping/shoppingcart/index"),
         meta: {
@@ -310,7 +310,6 @@ export const asyncRoutes = [
     component: Layout,
     redirect: "/wms/inventory",
     name: "wms",
-    hidden: true,
     meta: {
       title: "總倉管理",
       icon: "wmsview",

@@ -1,17 +1,17 @@
 <template>
   <div class="product-info">
     <!-- 活動標籤 -->
-    <div class="activity-tag" v-if="product.activityName">
+    <div class="activity-tag" v-if="product.activity_name">
       <el-tag type="success" effect="dark" @click="goToActivity">
-        {{ product.activityName }}
+        {{ product.activity_name }}
       </el-tag>
     </div>
 
     <!-- 產品名稱與基本資訊 -->
-    <h1 class="product-name">{{ product.name }}</h1>
+    <h1 class="product-name">{{ product.product_name }}</h1>
 
     <div class="product-code">
-      商品編號: {{ product.code || "P" + product.id }}
+      商品編號: {{ product.product_code || "P" + product.id }}
     </div>
 
     <!-- 價格資訊 -->
@@ -19,15 +19,15 @@
       <div class="current-price">NT$ {{ formatPrice(product.price) }}</div>
       <div
         class="original-price"
-        v-if="product.originalPrice && product.originalPrice > product.price"
+        v-if="product.original_price && product.original_price > product.price"
       >
-        NT$ {{ formatPrice(product.originalPrice) }}
+        NT$ {{ formatPrice(product.original_price) }}
       </div>
       <div
         class="discount-tag"
-        v-if="product.originalPrice && product.originalPrice > product.price"
+        v-if="product.original_price && product.original_price > product.price"
       >
-        {{ calculateDiscount(product.price, product.originalPrice) }}折
+        {{ calculateDiscount(product.price, product.original_price) }}折
       </div>
     </div>
 
@@ -74,30 +74,17 @@
         <i class="el-icon-shopping-cart-2"></i>
         加入購物車
       </el-button>
-
-      <el-button
-        type="danger"
-        :disabled="product.stock <= 0"
-        @click="handleBuyNow"
-        class="buy-now-btn"
-      >
-        立即購買
-      </el-button>
     </div>
 
     <!-- 商品運送與服務資訊 -->
     <div class="service-info">
       <div class="service-item">
         <i class="el-icon-truck"></i>
-        <span>全台配送</span>
+        <span>全台配送(不含離島)</span>
       </div>
       <div class="service-item">
         <i class="el-icon-time"></i>
-        <span>營業日3天內出貨</span>
-      </div>
-      <div class="service-item">
-        <i class="el-icon-refresh-right"></i>
-        <span>7天鑑賞期</span>
+        <span>營業日14天內出貨</span>
       </div>
     </div>
   </div>
@@ -130,23 +117,23 @@ export default {
   methods: {
     // 處理加入購物車
     handleAddToCart() {
+      if (this.quantity > this.product.stock) {
+        this.$message.warning("購買數量不能超過庫存量");
+        return;
+      }
       this.$emit("add-to-cart", this.quantity);
-    },
-
-    // 處理立即購買
-    handleBuyNow() {
-      this.$emit("buy-now", this.quantity);
     },
 
     // 前往活動頁面
     goToActivity() {
-      if (this.product.activityId) {
-        this.$emit("go-to-activity", this.product.activityId);
+      if (this.product.activity_id) {
+        this.$emit("go-to-activity", this.product.activity_id);
       }
     },
 
     // 格式化價格
     formatPrice(price) {
+      if (!price && price !== 0) return "0";
       return price.toFixed(0);
     },
 
@@ -273,8 +260,7 @@ $font-size-xxl: 28px;
     gap: 16px;
     margin: 16px 0;
 
-    .add-to-cart-btn,
-    .buy-now-btn {
+    .add-to-cart-btn {
       flex: 1;
       font-size: $font-size-base;
       padding: 12px 0;

@@ -1,810 +1,537 @@
-// Services.js - 整合 API 服務和資料
-import axios from "axios";
+// services.js - 整合 API 與前端資料處理
+import {
+  productApi,
+  activityApi,
+  cartApi,
+  bannerApi,
+  activityProductApi,
+  orderApi,
+  customerServiceConfigApi,
+  customerServiceRequestApi,
+  customerServiceMessageApi,
+  faqApi
+} from "@/api/shop";
 
-// 模擬API請求延遲
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+function extractData(response) {
+  return response && response.data ? response.data : {};
+}
 
-// 模擬資料總量
-const TOTAL_ACTIVITIES = 30;
-const TOTAL_PRODUCTS = 50;
+function safeParsePrice(value, fallback = 0) {
+  return parseFloat(value !== undefined && value !== null ? value : fallback);
+}
 
-/**
- * 獲取橫幅圖片
- * @returns {Promise<Object>} 橫幅圖片資訊
- */
+// 🧊 橫幅：獲取首頁橫幅圖片
 export async function getBannerImage() {
   try {
-    // 嘗試從真實 API 獲取
-    try {
-      const response = await axios.get("/api/banners/active");
-      return response.data;
-    } catch (apiError) {
-      console.log("使用模擬橫幅數據");
-
-      // 模擬 API 請求延遲
-      await delay(200);
-
-      // 返回模擬數據
-      return {
-        imageUrl: require("@/assets/pic/pic1.jpg")
-      };
-    }
+    const response = await bannerApi.getActiveBanner();
+    return extractData(response);
   } catch (error) {
     console.error("獲取橫幅圖片失敗:", error);
     throw error;
   }
 }
 
-/**
- * 獲取熱銷活動資訊
- * @returns {Promise<Object>} 熱銷活動資訊
- */
+// 🔥 熱銷活動（單一）
 export async function getHotSaleActivity() {
   try {
-    // 嘗試從真實 API 獲取
-    try {
-      const response = await axios.get("/api/activities/hot-sale");
-      return response;
-    } catch (apiError) {
-      console.log("使用模擬熱銷活動數據");
-
-      // 模擬 API 請求延遲
-      await delay(300);
-
-      // 生成模擬熱銷活動
-      const hotActivity = generateMockHotSaleActivity();
-
-      return {
-        data: hotActivity
-      };
-    }
+    const response = await activityApi.getHotSaleActivity();
+    return extractData(response);
   } catch (error) {
     console.error("獲取熱銷活動失敗:", error);
     throw error;
   }
 }
 
-/**
- * 獲取商品列表
- * @param {Object} params - 查詢參數
- * @param {Number} params.page - 頁碼
- * @param {Number} params.limit - 每頁數量
- * @param {String} params.type - 商品類型 (all, promotion, regular)
- * @returns {Promise<Object>} 商品列表和分頁資訊
- */
+// 🛒 商品列表（可指定常態 / 促銷）
 export async function getProductList(
   params = { page: 1, limit: 12, type: "all" }
 ) {
   try {
-    // 嘗試從真實 API 獲取
-    try {
-      const response = await axios.get("/api/products", { params });
-      return response.data;
-    } catch (apiError) {
-      console.log("使用模擬商品列表數據");
+    const apiParams = {
+      page: params.page,
+      page_size: params.limit
+    };
+    if (params.type === "promotion") apiParams.is_promotion = true;
+    else if (params.type === "regular") apiParams.is_promotion = false;
 
-      // 模擬 API 請求延遲
-      await delay(400);
+    const response = await productApi.getProducts(apiParams);
+    const data = extractData(response);
 
-      // 生成模擬商品列表
-      const products = generateMockProducts(
-        params.page,
-        params.limit,
-        params.type
-      );
+    const converted = (data.results || []).map(p => ({
+      id: p.id,
+      name: p.product_name || p.name,
+      productCode: p.product_code || "",
+      price: safeParsePrice(p.price),
+      originalPrice: safeParsePrice(p.original_price, p.price),
+      imageUrl: p.main_image_url || "",
+      stock: p.stock || 9999,
+      isPromotion: !!p.is_promotion
+    }));
 
-      // 計算過濾後的總商品數
-      let filteredTotal = TOTAL_PRODUCTS;
-
-      // 根據類型調整總數
-      if (params.type === "promotion") {
-        filteredTotal = Math.floor(TOTAL_PRODUCTS * 0.4); // 假設 40% 是活動商品
-      } else if (params.type === "regular") {
-        filteredTotal = Math.floor(TOTAL_PRODUCTS * 0.6); // 假設 60% 是常態商品
-      }
-
-      return {
-        data: products,
-        total: filteredTotal,
-        page: params.page,
-        limit: params.limit
-      };
-    }
+    return {
+      data: converted,
+      total: data.count || 0,
+      page: params.page,
+      limit: params.limit
+    };
   } catch (error) {
     console.error("獲取商品列表失敗:", error);
     throw error;
   }
 }
 
-/**
- * 獲取活動列表
- * @param {Object} params - 查詢參數
- * @param {Number} params.page - 頁碼
- * @param {Number} params.limit - 每頁數量
- * @param {String} params.filter - 過濾條件
- * @param {String} params.sort - 排序方式
- * @returns {Promise<Object>} 活動列表、總數和分頁信息
- */
-export async function getActivityList(
-  params = { page: 1, limit: 12, filter: "all", sort: "newest" }
+// 🛒 商品清單（含促銷價格）
+export async function getProductListWithPricing(
+  params = { page: 1, limit: 12, type: "all" }
 ) {
   try {
-    // 嘗試從真實 API 獲取
-    try {
-      const response = await axios.get("/api/activities", { params });
-      return response.data;
-    } catch (apiError) {
-      console.log("使用模擬活動列表數據");
+    const apiParams = {
+      page: params.page,
+      page_size: params.limit
+    };
+    if (params.type === "promotion") apiParams.is_promotion = true;
+    else if (params.type === "regular") apiParams.is_promotion = false;
 
-      // 模擬 API 請求延遲
-      await delay(500);
+    const response = await productApi.getProductsWithPricing(apiParams);
+    const data = extractData(response);
 
-      // 生成模擬數據
-      const activities = generateMockActivities(
-        params.page,
-        params.limit,
-        params.filter,
-        params.sort
-      );
+    const converted = (data.results || []).map(p => ({
+      id: p.id,
+      name: p.product_name,
+      productCode: p.product_code,
+      price: safeParsePrice(p.price),
+      originalPrice: safeParsePrice(p.original_price, p.price),
+      imageUrl: p.main_image_url || "",
+      stock: p.stock || 9999,
+      isPromotion: !!p.is_promotion
+    }));
 
-      // 計算過濾後的總活動數
-      let filteredTotal = TOTAL_ACTIVITIES;
-
-      // 根據過濾條件調整總數
-      if (params.filter === "popular") {
-        filteredTotal = Math.floor(TOTAL_ACTIVITIES * 0.7); // 假設 70% 是熱門活動
-      } else if (params.filter === "ending") {
-        filteredTotal = Math.floor(TOTAL_ACTIVITIES * 0.3); // 假設 30% 即將結束
-      } else if (params.filter === "new") {
-        filteredTotal = Math.floor(TOTAL_ACTIVITIES * 0.4); // 假設 40% 是新活動
-      }
-
-      return {
-        data: activities,
-        total: filteredTotal,
-        page: params.page,
-        limit: params.limit,
-        pages: Math.ceil(filteredTotal / params.limit)
-      };
-    }
+    return {
+      data: converted,
+      total: data.count || 0,
+      page: params.page,
+      limit: params.limit
+    };
   } catch (error) {
-    console.error("獲取活動列表失敗:", error);
+    console.error("獲取商品（含促銷價）列表失敗:", error);
     throw error;
   }
 }
 
-/**
- * 獲取購物車商品列表
- * @returns {Promise<Object>} 購物車商品列表
- */
+// 🧧 活動詳情（含優惠資訊）
+export async function getActivityDetailWithPromotion(activityId) {
+  try {
+    const response = await activityApi.getActivity(activityId);
+    const data = extractData(response);
+
+    const promotions = (data.products || []).map(ap => ({
+      productId: ap.product,
+      productName: ap.product_name,
+      price: safeParsePrice(ap.price),
+      originalPrice: safeParsePrice(ap.original_price),
+      promotionLabel: ap.discount_rate
+        ? `${parseFloat(ap.discount_rate * 10)}折`
+        : ap.buy_quantity && ap.gift_quantity
+        ? `買${ap.buy_quantity}送${ap.gift_quantity}`
+        : "",
+      giftProduct: ap.gift_product,
+      giftQuantity: ap.gift_quantity || 0
+    }));
+
+    return {
+      data: {
+        id: data.id,
+        name: data.name,
+        imageUrl: data.image_url || data.banner_url,
+        startDate: new Date(data.start_date),
+        endDate: new Date(data.end_date),
+        progress: data.progress,
+        remainingDays: data.remaining_days,
+        detailHtml: data.detail_html,
+        rulesHtml: data.rules_html,
+        promotions
+      }
+    };
+  } catch (error) {
+    console.error("獲取活動詳情（含優惠）失敗:", error);
+    throw error;
+  }
+}
+
+// 🎯 查詢指定商品在活動中的優惠資訊
+export async function getProductPromotionInActivity(productId, activityId) {
+  try {
+    const response = await activityProductApi.getProductActivityPromotion(
+      productId,
+      activityId
+    );
+    const data = extractData(response);
+
+    return {
+      productId: data.product,
+      activityId: data.activity,
+      price: safeParsePrice(data.price),
+      originalPrice: safeParsePrice(data.original_price, data.price),
+      promotionLabel: data.discount_rate
+        ? `${parseFloat(data.discount_rate * 10)}折`
+        : data.buy_quantity && data.gift_quantity
+        ? `買${data.buy_quantity}送${data.gift_quantity}`
+        : "",
+      giftProduct: data.gift_product,
+      giftQuantity: data.gift_quantity || 0
+    };
+  } catch (error) {
+    console.error("查詢商品在活動中的優惠失敗:", error);
+    throw error;
+  }
+}
+
+// 📦 購物車操作
 export async function getCartItems() {
   try {
-    // 嘗試從真實 API 獲取
-    try {
-      const response = await axios.get("/api/cart/items");
-      return response.data;
-    } catch (apiError) {
-      console.log("使用模擬購物車數據");
-
-      // 模擬API請求延遲
-      await delay(300);
-
-      // 模擬購物車商品數據
-      const cartItems = generateMockCartItems();
-      return {
-        data: cartItems
-      };
-    }
+    const response = await cartApi.getCartItems();
+    return extractData(response.data);
   } catch (error) {
-    console.error("獲取購物車商品列表失敗:", error);
+    console.error("獲取購物車列表失敗:", error);
     throw error;
   }
 }
 
-/**
- * 獲取活動詳情
- * @param {String} activityId - 活動ID
- * @returns {Promise<Object>} 活動詳情
- */
-export async function getActivityDetail(activityId) {
-  try {
-    // 嘗試從真實 API 獲取
-    try {
-      const response = await axios.get(`/api/activities/${activityId}`);
-      return response.data;
-    } catch (apiError) {
-      console.log("使用模擬活動詳情數據");
-
-      // 模擬API請求延遲
-      await delay(300);
-
-      // 生成模擬數據
-      const activity = generateMockActivityDetail(activityId);
-      return {
-        data: activity
-      };
-    }
-  } catch (error) {
-    console.error("獲取活動詳情失敗:", error);
-    throw error;
-  }
-}
-
-/**
- * 獲取商品詳情
- * @param {String} productId - 商品ID
- * @returns {Promise<Object>} 商品詳情
- */
-export async function getProductDetail(productId) {
-  try {
-    // 嘗試從真實 API 獲取
-    try {
-      const response = await axios.get(`/api/products/${productId}`);
-      return response.data;
-    } catch (apiError) {
-      console.log("使用模擬商品詳情數據");
-
-      // 模擬API請求延遲
-      await delay(300);
-
-      // 生成模擬數據
-      const product = generateMockProductDetail(productId);
-      return {
-        data: product
-      };
-    }
-  } catch (error) {
-    console.error("獲取商品詳情失敗:", error);
-    throw error;
-  }
-}
-
-/**
- * 獲取活動商品列表
- * @param {Object} params - 查詢參數
- * @param {String} params.activityId - 活動ID
- * @param {Number} params.page - 頁碼
- * @param {Number} params.limit - 每頁數量
- * @returns {Promise<Object>} 商品列表和是否有更多數據
- */
-export async function getActivityProducts(
-  params = { activityId: null, page: 1, limit: 8 }
-) {
-  try {
-    // 嘗試從真實 API 獲取
-    try {
-      const response = await axios.get(
-        `/api/activities/${params.activityId}/products`,
-        {
-          params: {
-            page: params.page,
-            limit: params.limit
-          }
-        }
-      );
-      return response.data;
-    } catch (apiError) {
-      console.log("使用模擬活動商品數據");
-
-      // 模擬API請求延遲
-      await delay(400);
-
-      // 生成模擬數據
-      const products = generateMockActivityProducts(
-        params.activityId,
-        params.page,
-        params.limit
-      );
-      return {
-        data: products,
-        hasMore: products.length === params.limit && params.page < 3 // 最多模擬3頁數據
-      };
-    }
-  } catch (error) {
-    console.error("獲取活動商品列表失敗:", error);
-    throw error;
-  }
-}
-
-/**
- * 添加商品到購物車
- * @param {Object} params - 添加參數
- * @param {String} params.productId - 商品ID
- * @param {Number} params.quantity - 數量
- * @param {String} params.activityId - 活動ID (可選)
- * @returns {Promise<Object>} 添加結果
- */
 export async function addToCart(
   params = { productId: null, quantity: 1, activityId: null }
 ) {
   try {
-    // 嘗試調用真實 API
-    try {
-      const response = await axios.post("/api/cart/add", params);
-      return response.data;
-    } catch (apiError) {
-      console.log("使用模擬添加購物車功能");
-
-      // 模擬API請求延遲
-      await delay(300);
-
-      // 模擬添加成功
-      return {
-        data: {
-          success: true,
-          message: "添加成功"
-        }
-      };
-    }
+    const response = await cartApi.addToCart(params);
+    return extractData(response);
   } catch (error) {
     console.error("添加到購物車失敗:", error);
     throw error;
   }
 }
 
-/**
- * 獲取購物車商品數量
- * @returns {Promise<Object>} 購物車數量
- */
+export async function updateCartItem(
+  params = { productId: null, quantity: 1, activityId: null }
+) {
+  try {
+    const response = await cartApi.updateCartItem(params);
+    return extractData(response);
+  } catch (error) {
+    console.error("更新購物車商品失敗:", error);
+    throw error;
+  }
+}
+
+export async function removeCartItem(cartItemId) {
+  try {
+    const response = await cartApi.removeFromCart({ id: cartItemId });
+    return extractData(response);
+  } catch (error) {
+    console.error("從購物車移除商品失敗:", error);
+    throw error;
+  }
+}
+
 export async function getCartCount() {
   try {
-    // 嘗試從真實 API 獲取
-    try {
-      const response = await axios.get("/api/cart/count");
-      return response.data;
-    } catch (apiError) {
-      console.log("使用模擬購物車數量");
-
-      // 模擬API請求延遲
-      await delay(200);
-
-      // 模擬購物車數量，隨機返回1-9之間的數字
-      return {
-        data: {
-          count: Math.floor(Math.random() * 9) + 1
-        }
-      };
-    }
+    const response = await cartApi.getCartCount();
+    return extractData(response);
   } catch (error) {
     console.error("獲取購物車數量失敗:", error);
     throw error;
   }
 }
 
-/**
- * 生成模擬熱銷活動（開發/測試使用）
- * @returns {Object} 熱銷活動信息
- */
-function generateMockHotSaleActivity() {
-  // 當前日期
-  const now = new Date();
-
-  // 活動結束日期 (3天後)
-  const endDate = new Date(now);
-  endDate.setDate(now.getDate() + 3);
-
-  // 隨機生成4-8個熱銷商品
-  const productCount = Math.floor(Math.random() * 5) + 4;
-  const products = [];
-
-  for (let i = 0; i < productCount; i++) {
-    const price = Math.floor(Math.random() * 5000) + 500;
-    const hasDiscount = Math.random() > 0.2; // 80% 的概率有折扣
-    const originalPrice = hasDiscount
-      ? Math.floor(price * (1 + Math.random() * 0.7))
-      : null;
-
-    // 隨機標籤
-    const specialTags = ["限時特惠", "今日特價", "員工專享", "限量優惠"];
-    const hasTag = Math.random() > 0.5;
-
-    products.push({
-      id: `hotproduct-${i + 1}`,
-      name: getRandomProductName(),
-      shortDescription: `超值特惠，限時折扣，數量有限，先到先得！`,
-      price: price,
-      originalPrice: originalPrice,
-      imageUrl: require("@/assets/pic/pic3.jpg"),
-      specialTag: hasTag
-        ? specialTags[Math.floor(Math.random() * specialTags.length)]
-        : null
-    });
+// 清空購物車
+export async function clearCart() {
+  try {
+    const response = await cartApi.clearCart();
+    return extractData(response);
+  } catch (error) {
+    console.error("清空購物車失敗:", error);
+    throw error;
   }
-
-  return {
-    id: "hot-sale-activity",
-    name: "今日最熱銷優惠活動",
-    bannerUrl: require("@/assets/pic/pic2.jpg"),
-    endDate: endDate.toISOString(),
-    products: products
-  };
 }
 
-/**
- * 生成模擬活動列表（開發/測試使用）
- * @param {Number} page - 頁碼
- * @param {Number} limit - 每頁數量
- * @param {String} filter - 過濾條件
- * @param {String} sort - 排序方式
- * @returns {Array} 活動列表
- */
-function generateMockActivities(page, limit, filter, sort) {
-  const result = [];
-  const startIndex = (page - 1) * limit;
+// 🧾 商品詳情
+export async function getProductDetail(productId) {
+  try {
+    const response = await productApi.getProduct(productId);
+    return { data: extractData(response) };
+  } catch (error) {
+    console.error("獲取商品詳情失敗:", error);
+    throw error;
+  }
+}
 
-  // 創建所有活動的完整列表
-  const allActivities = [];
-  for (let i = 0; i < TOTAL_ACTIVITIES; i++) {
-    const now = new Date();
+// 🔍 獲取活動列表
+export async function getActivityList(params = { page: 1, limit: 12 }) {
+  try {
+    const response = await activityApi.getActivities({
+      page: params.page,
+      page_size: params.limit
+    });
+    const data = extractData(response);
+    return {
+      data: data.results || [],
+      total: data.count || 0,
+      page: params.page,
+      limit: params.limit
+    };
+  } catch (error) {
+    console.error("獲取活動列表失敗:", error);
+    throw error;
+  }
+}
 
-    // 隨機生成開始日期（過去 0-20 天）
-    const startDate = new Date(now);
-    startDate.setDate(now.getDate() - Math.floor(Math.random() * 20));
+// 🔍 獲取活動詳情（未含優惠）
+export async function getActivityDetail(activityId) {
+  try {
+    const response = await activityApi.getActivity(activityId);
+    return { data: extractData(response) };
+  } catch (error) {
+    console.error("獲取活動詳情失敗:", error);
+    throw error;
+  }
+}
 
-    // 隨機生成結束日期（未來 1-30 天）
-    const endDate = new Date(now);
-    endDate.setDate(now.getDate() + Math.floor(Math.random() * 30) + 1);
+// 📦 獲取活動中的商品列表
+export async function getActivityProducts({ activityId, page = 1, limit = 8 }) {
+  try {
+    const response = await activityApi.getActivityProducts(activityId, {
+      page,
+      page_size: limit
+    });
+    const data = extractData(response);
+    return {
+      data: data.results || [],
+      hasMore: data.next !== null,
+      total: data.count
+    };
+  } catch (error) {
+    console.error("獲取活動商品失敗:", error);
+    throw error;
+  }
+}
 
-    // 計算剩餘天數
-    const remainingDays = Math.max(
-      0,
-      Math.ceil((endDate - now) / (1000 * 60 * 60 * 24))
+// 🛍️ 獲取促銷活動（內建）
+export async function getProductPromotion(params = { page: 1, limit: 12 }) {
+  try {
+    const response = await activityApi.getProductPromotion({
+      page: params.page,
+      page_size: params.limit
+    });
+    const data = extractData(response);
+    return {
+      data: data.results || [],
+      total: data.count || 0,
+      page: params.page,
+      limit: params.limit
+    };
+  } catch (error) {
+    console.error("獲取促銷活動失敗:", error);
+    throw error;
+  }
+}
+
+// 💳 創建訂單
+export async function createOrder(orderData) {
+  try {
+    // 調用 API 創建訂單
+    const response = await orderApi.createOrder(orderData);
+    return extractData(response);
+  } catch (error) {
+    console.error("創建訂單失敗:", error);
+    throw error;
+  }
+}
+
+// 獲取使用者訂單列表
+export async function getUserOrders(params = { page: 1, limit: 20 }) {
+  try {
+    const response = await orderApi.getUserOrders({
+      page: params.page,
+      page_size: params.limit
+    });
+    const data = extractData(response);
+
+    return {
+      data: data.results || [],
+      total: data.count || 0,
+      page: params.page,
+      limit: params.limit
+    };
+  } catch (error) {
+    console.error("獲取使用者訂單失敗:", error);
+    throw error;
+  }
+}
+
+// 獲取訂單詳情（包含訂單項目）
+export async function getOrderDetail(orderId) {
+  try {
+    // 使用更高效的order_detail端點獲取完整訂單信息
+    const response = await orderApi.getOrderdetailItems(orderId);
+    const data = extractData(response);
+
+    // 根據後端 OrderViewSet.order_detail 方法的返回格式構建返回對象
+    console.log("獲取訂單詳情:", error);
+    return {
+      order: data.order || {},
+      order_items: data.order_items || [],
+      inventory_reservations: data.inventory_reservations || []
+    };
+  } catch (error) {
+    console.error("獲取訂單詳情失敗:", error);
+    throw error;
+  }
+}
+
+// 👨‍💼 客服系統相關服務
+
+import {
+  customerServiceConfigApi,
+  customerServiceRequestApi,
+  customerServiceMessageApi,
+  faqApi
+} from "@/api/shop";
+
+// 獲取客服系統設定（包含營業時間計算）
+export async function getCustomerServiceConfig() {
+  try {
+    const response = await customerServiceConfigApi.getCurrentConfig();
+    return extractData(response);
+  } catch (error) {
+    console.error("獲取客服系統設定失敗:", error);
+    throw error;
+  }
+}
+
+// 獲取常見問題列表
+export async function getFAQs(category = null) {
+  try {
+    const params = category ? { category } : {};
+    const response = await faqApi.getFAQs(params);
+    return extractData(response);
+  } catch (error) {
+    console.error("獲取常見問題失敗:", error);
+    throw error;
+  }
+}
+
+// 獲取分類後的常見問題
+export async function getFAQsByCategory() {
+  try {
+    const response = await faqApi.getFAQsByCategory();
+    return extractData(response);
+  } catch (error) {
+    console.error("獲取分類常見問題失敗:", error);
+    throw error;
+  }
+}
+
+// 創建客服請求
+export async function createServiceRequest(data) {
+  try {
+    const response = await customerServiceRequestApi.createServiceRequest(data);
+    return extractData(response);
+  } catch (error) {
+    console.error("創建客服請求失敗:", error);
+    throw error;
+  }
+}
+
+// 獲取我的客服請求列表
+export async function getMyServiceRequests() {
+  try {
+    const response = await customerServiceRequestApi.getMyServiceRequests();
+    return extractData(response);
+  } catch (error) {
+    console.error("獲取我的客服請求失敗:", error);
+    throw error;
+  }
+}
+
+// 獲取客服請求詳情
+export async function getServiceRequestDetail(requestId) {
+  try {
+    const response = await customerServiceRequestApi.getServiceRequest(
+      requestId
     );
-
-    // 隨機銷售進度
-    const progress = Math.floor(Math.random() * 100);
-
-    // 是否為熱門活動（根據進度決定）
-    const isPopular = progress > 60;
-
-    allActivities.push({
-      id: `activity-${i + 1}`,
-      name: `員工優惠活動 ${i + 1}`,
-      imageUrl: require("@/assets/pic/pic2.jpg"),
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
-      remainingDays: remainingDays,
-      progress: progress,
-      isPopular: isPopular,
-      // 計算創建時間差（用於確定是否為新活動）
-      daysFromStart: Math.ceil((now - startDate) / (1000 * 60 * 60 * 24))
-    });
+    return extractData(response);
+  } catch (error) {
+    console.error("獲取客服請求詳情失敗:", error);
+    throw error;
   }
+}
 
-  // 根據過濾條件過濾活動
-  let filteredActivities = [...allActivities];
-
-  if (filter === "popular") {
-    filteredActivities = filteredActivities.filter(a => a.isPopular);
-  } else if (filter === "ending") {
-    filteredActivities = filteredActivities.filter(a => a.remainingDays <= 7);
-  } else if (filter === "new") {
-    filteredActivities = filteredActivities.filter(a => a.daysFromStart <= 7);
-  }
-
-  // 根據排序條件排序
-  if (sort === "newest") {
-    filteredActivities.sort(
-      (a, b) => new Date(b.startDate) - new Date(a.startDate)
+// 獲取請求對話消息
+export async function getRequestMessages(requestId) {
+  try {
+    const response = await customerServiceMessageApi.getRequestMessages(
+      requestId
     );
-  } else if (sort === "popular") {
-    filteredActivities.sort((a, b) => b.progress - a.progress);
-  } else if (sort === "endDate") {
-    filteredActivities.sort((a, b) => a.remainingDays - b.remainingDays);
+    return extractData(response);
+  } catch (error) {
+    console.error("獲取客服訊息失敗:", error);
+    throw error;
   }
-
-  // 模擬分頁
-  const paginatedActivities = filteredActivities.slice(
-    startIndex,
-    startIndex + limit
-  );
-
-  return paginatedActivities;
 }
 
-/**
- * 生成模擬活動詳情（開發/測試使用）
- * @param {String} activityId - 活動ID
- * @returns {Object} 活動詳情
- */
-function generateMockActivityDetail(activityId) {
-  const activityIndex = parseInt(activityId.split("-")[1]) || 1;
-  const now = new Date();
-  const startDate = new Date(now);
-  startDate.setDate(now.getDate() - Math.floor(Math.random() * 10));
-  const endDate = new Date(now);
-  endDate.setDate(now.getDate() + Math.floor(Math.random() * 20) + 1);
-  const remainingDays = Math.max(
-    0,
-    Math.ceil((endDate - now) / (1000 * 60 * 60 * 24))
-  );
-
-  // 添加HTML內容示例
-  const detailHtml = `
-    <p>這是一個專為員工提供的特別優惠活動，提供多種商品折扣。</p>
-    <p>活動時間有限，請把握機會！這是第${activityIndex}個活動的詳細描述。</p>
-    <ul>
-      <li>特別優惠價格</li>
-      <li>限量商品</li>
-      <li>專屬員工福利</li>
-    </ul>
-    <p>更多詳情請咨詢人力資源部門。</p>
-  `;
-
-  const rulesHtml = `
-    <ol>
-      <li>每位員工限購數量：3件</li>
-      <li>活動期間內，先到先得</li>
-      <li>不可與其他優惠同時使用</li>
-      <li>公司保留最終解釋權</li>
-    </ol>
-    <p><strong>注意：</strong>請務必在活動結束前完成購買。</p>
-  `;
-
-  return {
-    id: activityId,
-    name: `員工優惠活動 ${activityIndex}`,
-    description: `這是一個專為員工提供的特別優惠活動，提供多種商品折扣。活動說明詳情，活動時間有限，請把握機會！這是第${activityIndex}個活動的詳細描述。`,
-    imageUrl: require("@/assets/pic/pic2.jpg"),
-    startDate: startDate.toISOString(),
-    endDate: endDate.toISOString(),
-    remainingDays: remainingDays,
-    progress: Math.floor(Math.random() * 100),
-    detailHtml: detailHtml,
-    rulesHtml: rulesHtml
-  };
-}
-
-/**
- * 生成模擬活動商品列表（開發/測試使用）
- * @param {String} activityId - 活動ID
- * @param {Number} page - 頁碼
- * @param {Number} limit - 每頁數量
- * @returns {Array} 商品列表
- */
-function generateMockActivityProducts(activityId, page, limit) {
-  const result = [];
-  const activityIndex = parseInt(activityId.split("-")[1]) || 1;
-  const startIndex = (page - 1) * limit;
-
-  for (let i = 0; i < limit; i++) {
-    const index = startIndex + i;
-    if (index >= 24) break; // 假設每個活動最多 24 個商品
-
-    const price = Math.floor(Math.random() * 1000) + 100;
-    const hasDiscount = Math.random() > 0.3; // 70% 的概率有折扣
-    const originalPrice = hasDiscount
-      ? Math.floor(price * (1 + Math.random() * 0.5))
-      : price;
-    const stock = Math.floor(Math.random() * 20); // 有些商品可能已售罄
-
-    result.push({
-      id: `product-${activityIndex}-${index + 1}`,
-      name: `${getRandomProductName()} ${index + 1}`,
-      price: price,
-      originalPrice: originalPrice,
-      imageUrl: require("@/assets/pic/pic3.jpg"),
-      stock: stock
-    });
+// 回覆客服請求
+export async function replyToServiceRequest(data) {
+  try {
+    const response = await customerServiceMessageApi.replyToServiceRequest(
+      data
+    );
+    return extractData(response);
+  } catch (error) {
+    console.error("回覆客服請求失敗:", error);
+    throw error;
   }
-
-  return result;
 }
 
-/**
- * 生成模擬商品列表（開發/測試使用）
- * @param {Number} page - 頁碼
- * @param {Number} limit - 每頁數量
- * @param {String} type - 商品類型
- * @returns {Array} 商品列表
- */
-function generateMockProducts(page, limit, type) {
-  const result = [];
-  const startIndex = (page - 1) * limit;
-
-  // 創建所有商品的完整列表
-  const allProducts = [];
-  for (let i = 0; i < TOTAL_PRODUCTS; i++) {
-    const price = Math.floor(Math.random() * 2000) + 100;
-    const hasDiscount = Math.random() > 0.4; // 60% 的概率有折扣
-    const originalPrice = hasDiscount
-      ? Math.floor(price * (1 + Math.random() * 0.5))
-      : price;
-    const stock = Math.floor(Math.random() * 20); // 0-19庫存
-    const isPromotion = Math.random() > 0.6; // 40% 是活動商品
-
-    allProducts.push({
-      id: `product-regular-${i + 1}`,
-      name: `${getRandomProductName()} ${i + 1}`,
-      price: price,
-      originalPrice: originalPrice,
-      imageUrl: require("@/assets/pic/pic3.jpg"),
-      stock: stock,
-      isPromotion: isPromotion
-    });
-  }
-
-  // 根據類型過濾商品
-  let filteredProducts = [...allProducts];
-
-  if (type === "promotion") {
-    filteredProducts = filteredProducts.filter(p => p.isPromotion);
-  } else if (type === "regular") {
-    filteredProducts = filteredProducts.filter(p => !p.isPromotion);
-  }
-
-  // 模擬分頁
-  const paginatedProducts = filteredProducts.slice(
-    startIndex,
-    startIndex + limit
-  );
-
-  return paginatedProducts;
-}
-
-/**
- * 隨機生成商品名稱（開發/測試使用）
- * @returns {String} 商品名稱
- */
-function getRandomProductName() {
-  const prefixes = [
-    "優質",
-    "限量",
-    "特惠",
-    "精選",
-    "高級",
-    "實用",
-    "熱銷",
-    "超值"
-  ];
-  const items = [
-    "商品",
-    "禮品",
-    "套裝",
-    "家電",
-    "數碼產品",
-    "辦公用品",
-    "生活用品",
-    "廚具"
-  ];
-
-  const randomPrefix = prefixes[Math.floor(Math.random() * prefixes.length)];
-  const randomItem = items[Math.floor(Math.random() * items.length)];
-
-  return `${randomPrefix}${randomItem}`;
-}
-
-/**
- * 生成模擬購物車商品（開發/測試使用）
- * @returns {Array} 購物車商品列表
- */
-function generateMockCartItems() {
-  const itemCount = Math.floor(Math.random() * 5) + 1; // 1-5個商品
-  const result = [];
-
-  for (let i = 0; i < itemCount; i++) {
-    const price = Math.floor(Math.random() * 1000) + 100;
-    const quantity = Math.floor(Math.random() * 3) + 1; // 1-3件
-
-    result.push({
-      id: `cart-item-${i + 1}`,
-      productId: `product-${Math.floor(Math.random() * 10) + 1}-${Math.floor(
-        Math.random() * 10
-      ) + 1}`,
-      name: `${getRandomProductName()} ${i + 1}`,
-      price: price,
-      quantity: quantity,
-      imageUrl: require("@/assets/pic/pic3.jpg"),
-      activityId: `activity-${Math.floor(Math.random() * 5) + 1}`,
-      activityName: `員工優惠活動 ${Math.floor(Math.random() * 5) + 1}`
-    });
-  }
-
-  return result;
-}
-
-/**
- * 生成模擬產品詳情（開發/測試使用）
- * @param {String} productId - 商品ID
- * @returns {Object} 商品詳情
- */
-function generateMockProductDetail(productId) {
-  // 從產品ID解析活動ID和產品索引
-  const parts = productId.split("-");
-  let activityId = null;
-  let productIndex = 1;
-
-  if (parts.length >= 3) {
-    activityId = `activity-${parts[1]}`;
-    productIndex = parseInt(parts[2]) || 1;
-  }
-
-  const price = Math.floor(Math.random() * 2000) + 500;
-  const hasDiscount = Math.random() > 0.3; // 70% 的概率有折扣
-  const originalPrice = hasDiscount
-    ? Math.floor(price * (1 + Math.random() * 0.5))
-    : price;
-  const stock = Math.floor(Math.random() * 20); // 0-19庫存
-
-  // 生成多張產品圖片
-  const imageUrls = [
-    require("@/assets/pic/pic3.jpg"),
-    require("@/assets/pic/pic3.jpg"),
-    require("@/assets/pic/pic3.jpg")
-  ];
-
-  // 產品描述HTML
-  const descriptionHtml = `
-    <div class="product-description">
-      <p>這是一款高品質的${getRandomProductName()}，特別為員工優惠活動設計。</p>
-      <p>產品特點：</p>
-      <ul>
-        <li>優質材料，耐用實用</li>
-        <li>精緻設計，美觀大方</li>
-        <li>多種功能，滿足日常需求</li>
-      </ul>
-      <p>產品尺寸：${Math.floor(Math.random() * 30) + 10}cm x ${Math.floor(
-    Math.random() * 20
-  ) + 10}cm</p>
-      <p>產品重量：${(Math.random() * 2 + 0.5).toFixed(2)}kg</p>
-    </div>
-  `;
-
-  // 產品規格HTML
-  const specificationHtml = `
-    <div class="product-specification">
-      <h3>基本信息</h3>
-      <table>
-        <tr>
-          <td>品牌</td>
-          <td>優品牌${Math.floor(Math.random() * 10) + 1}</td>
-        </tr>
-        <tr>
-          <td>型號</td>
-          <td>TP-${1000 + Math.floor(Math.random() * 1000)}</td>
-        </tr>
-        <tr>
-          <td>顏色</td>
-          <td>${
-            ["黑色", "白色", "銀色", "金色"][Math.floor(Math.random() * 4)]
-          }</td>
-        </tr>
-        <tr>
-          <td>產地</td>
-          <td>${
-            ["台灣", "中國", "日本", "韓國"][Math.floor(Math.random() * 4)]
-          }</td>
-        </tr>
-      </table>
-    </div>
-  `;
-
-  return {
-    id: productId,
-    name: `${getRandomProductName()} ${productIndex}`,
-    price: price,
-    originalPrice: originalPrice,
-    mainImageUrl: require("@/assets/pic/pic3.jpg"),
-    imageUrls: imageUrls,
-    stock: stock,
-    activityId: activityId,
-    activityName: activityId ? `員工優惠活動 ${parts[1]}` : null,
-    descriptionHtml: descriptionHtml,
-    specificationHtml: specificationHtml,
-    tags: ["品質保證", "限時優惠", "員工專享"]
-  };
-}
-
-// 將所有方法匯出為默認對象
 export default {
+  // 🧊 橫幅相關
   getBannerImage,
+
+  // 🔥 熱銷活動
   getHotSaleActivity,
+
+  // 🛒 商品列表（含常態與促銷）
   getProductList,
+  getProductListWithPricing,
+
+  // 🧧 活動列表與詳情
   getActivityList,
   getActivityDetail,
+  getActivityDetailWithPromotion, // ⭐️ 活動詳情＋優惠資訊
   getActivityProducts,
+  getProductPromotionInActivity, // ⭐️ 單一商品在活動中的優惠展示
+  getProductPromotion,
+
+  // 🛍️ 購物車操作
   addToCart,
   getCartCount,
   getCartItems,
-  getProductDetail
+  updateCartItem,
+  removeCartItem,
+  clearCart, // 添加清空購物車方法
+
+  // 🧾 商品詳情
+  getProductDetail,
+
+  // 💳 訂單操作
+  createOrder,
+  getUserOrders,
+  getOrderDetail,
+
+  // 👨‍💼 客服系統相關
+  getCustomerServiceConfig,
+  getFAQs,
+  getFAQsByCategory,
+  createServiceRequest,
+  getMyServiceRequests,
+  getServiceRequestDetail,
+  getRequestMessages,
+  replyToServiceRequest
 };

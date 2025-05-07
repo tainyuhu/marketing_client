@@ -40,9 +40,16 @@
     <div class="checkout-content">
       <!-- 步驟1: 確認商品信息 -->
       <div v-show="currentStep === 0" class="step-container">
+        <!-- 加載狀態 -->
+        <div v-if="loading" class="loading-container">
+          <el-skeleton :rows="6" animated />
+        </div>
         <cart-confirmation
+          v-else
           :cart-items="cartItems"
           :is-mobile="isMobile"
+          :updating-items="updatingItems"
+          :removing-items="removingItems"
           @update-quantity="updateCartItemQuantity"
           @remove-item="removeCartItem"
         />
@@ -69,7 +76,7 @@
       <!-- 步驟4: 訂單確認與摘要 -->
       <div v-show="currentStep === 3" class="step-container">
         <order-summary
-          :cart-items="cartItems"
+          :cart-items="this.cartItems"
           :address="shippingAddress"
           :payment-method="paymentMethod"
           :total-amount="totalAmount"
@@ -106,7 +113,7 @@
         <el-button
           type="primary"
           @click="nextStep"
-          :loading="submitting"
+          :loading="processingAction"
           :disabled="isNextButtonDisabled"
           :size="isMobile ? 'large' : 'medium'"
           class="action-button"
@@ -141,6 +148,8 @@ import PaymentMethod from "./components/PaymentMethod.vue";
 import OrderSummary from "./components/OrderSummary.vue";
 import OrderSuccessDialog from "./components/OrderSuccessDialog.vue";
 import Services from "../services/Services.js";
+import { debounce } from "@/utils/debounce"; // 引入共用防抖函數
+import { Message } from "element-ui"; // 直接引入 Message
 
 export default {
   name: "CheckoutPage",
@@ -157,6 +166,16 @@ export default {
     return {
       currentStep: 0,
       cartItems: [],
+      cartSummary: {
+        subtotal: 0,
+        itemDiscounts: 0,
+        orderDiscounts: 0,
+        finalAmount: 0,
+        totalQuantity: 0,
+        totalGifts: 0,
+        freeShipping: false,
+        appliedRules: []
+      },
       shippingAddress: {
         name: "",
         phone: "",
@@ -166,7 +185,7 @@ export default {
       },
       paymentMethod: "bankTransfer", // 默認為轉帳
       loading: true,
-      submitting: false,
+      processingAction: false,
       orderSuccessDialogVisible: false,
       orderNumber: "",
       windowWidth: window.innerWidth,
@@ -176,7 +195,11 @@ export default {
         { title: "填寫資料", icon: "el-icon-edit-outline" },
         { title: "付款方式", icon: "el-icon-bank-card" },
         { title: "完成訂單", icon: "el-icon-check" }
-      ]
+      ],
+      // 存儲操作狀態，用於界面顯示
+      updatingItems: {},
+      removingItems: {},
+      updateTimers: {} // 存儲更新定時器ID
     };
   },
 
@@ -193,21 +216,27 @@ export default {
 
     // 計算總金額
     totalAmount() {
-      return this.cartItems.reduce((total, item) => {
-        return total + item.price * item.quantity;
-      }, 0);
+      return (
+        this.cartSummary.finalAmount ||
+        this.cartItems.reduce((total, item) => {
+          return total + item.price * item.quantity;
+        }, 0)
+      );
     },
 
     // 計算總數量
     totalQuantity() {
-      return this.cartItems.reduce((total, item) => {
-        return total + item.quantity;
-      }, 0);
+      return (
+        this.cartSummary.totalQuantity ||
+        this.cartItems.reduce((total, item) => {
+          return total + item.quantity;
+        }, 0)
+      );
     },
 
     // 判斷下一步按鈕是否禁用
     isNextButtonDisabled() {
-      if (this.submitting) return true;
+      if (this.processingAction) return true;
 
       // 第一步：購物車為空時禁用
       if (this.currentStep === 0 && this.cartItems.length === 0) {
@@ -225,14 +254,31 @@ export default {
   },
 
   created() {
+    // 創建防抖後的函數
+    this.debouncedUpdateQuantity = debounce(this.performQuantityUpdate, 150);
+    this.debouncedRemoveItem = debounce(this.performRemoveItem, 150);
+    this.debouncedSubmitOrder = debounce(this.performSubmitOrder, 150, true); // 立即執行，但防止短時間內多次觸發
+
     this.fetchCartItems();
     window.addEventListener("resize", this.handleResize);
     window.addEventListener("scroll", this.handleScroll);
   },
 
   beforeDestroy() {
+    // 清理防抖定時器
+    this.debouncedUpdateQuantity.cancel &&
+      this.debouncedUpdateQuantity.cancel();
+    this.debouncedRemoveItem.cancel && this.debouncedRemoveItem.cancel();
+    this.debouncedSubmitOrder.cancel && this.debouncedSubmitOrder.cancel();
+
+    // 清理其他事件監聽器
     window.removeEventListener("resize", this.handleResize);
     window.removeEventListener("scroll", this.handleScroll);
+
+    // 清理更新定時器
+    Object.values(this.updateTimers).forEach(timerId => {
+      if (timerId) clearTimeout(timerId);
+    });
   },
 
   methods: {
@@ -260,60 +306,221 @@ export default {
 
       try {
         const response = await Services.getCartItems();
-        this.cartItems = response.data;
+
+        if (!response) {
+          throw new Error("獲取購物車失敗: 沒有從伺服器獲得響應");
+        }
+
+        this.cartItems = response.items || [];
+        this.cartSummary = response.summary || {
+          subtotal: 0,
+          finalAmount: 0,
+          totalQuantity: 0
+        };
+
+        // 初始化每個商品的 _lastQuantity 屬性
+        this.cartItems.forEach(item => {
+          item._lastQuantity = item.quantity;
+        });
       } catch (error) {
-        console.error("Failed to fetch cart items", error);
-        this.$message.error("獲取購物車失敗，請稍後再試");
-        // 載入測試數據
-        this.cartItems = this.generateMockCartItems();
+        console.error("獲取購物車失敗:", error);
+        Message({
+          message: "獲取購物車失敗，請稍後再試",
+          type: "error"
+        });
       } finally {
         this.loading = false;
       }
     },
 
-    // 更新購物車商品數量
-    async updateCartItemQuantity(item) {
+    // 更新購物車商品數量 - 防抖處理
+    updateCartItemQuantity(item) {
+      this.$set(this.updatingItems, item.product, true);
+
+      // 添加一個短暫的定時器，確保視覺反饋至少持續100ms
+      const timerId = setTimeout(() => {
+        if (!this.updatingItems[item.product]) return;
+        this.$set(this.updatingItems, item.product, false);
+      }, 100);
+
+      // 保存定時器ID以便在需要時清除
+      this.$set(this.updateTimers, item.product, timerId);
+
+      // 調用防抖函數
+      this.debouncedUpdateQuantity(item);
+    },
+
+    // 實際執行更新的函數
+    async performQuantityUpdate(item) {
+      // 保存原數量，以便在請求失敗時還原
+      const originalQuantity = item.quantity;
+      const originalTotal = this.cartSummary.finalAmount;
+      const originalSubtotal = this.cartSummary.subtotal;
+
+      // 先在前端更新計算購物車總金額（臨時計算）
+      const priceDifference =
+        item.price * (item.quantity - (item._lastQuantity || 0));
+      this.cartSummary.subtotal = parseFloat(
+        (this.cartSummary.subtotal + priceDifference).toFixed(2)
+      );
+      this.cartSummary.finalAmount = parseFloat(
+        (this.cartSummary.finalAmount + priceDifference).toFixed(2)
+      );
+
+      // 記錄這個商品的最後數量，用於下次計算差異
+      item._lastQuantity = item.quantity;
+
       try {
-        await Services.updateCartItem({
-          cartItemId: item.id,
-          quantity: item.quantity
+        // 向後端發送更新請求
+        const response = await Services.updateCartItem({
+          productId: item.product,
+          quantity: item.quantity,
+          activityId: item.activity
         });
-        this.$message({
+
+        console.log("更新購物車返回結果:", response); // 輸出響應查看結構
+
+        // 如果服務器返回了更新後的購物車信息，使用服務器的數據
+        if (response && response.summary) {
+          this.cartSummary = response.summary;
+
+          // 如果服務器返回了商品信息，更新本地商品信息
+          if (response.items) {
+            // 尋找目前操作的商品
+            const updatedItem = response.items.find(
+              i => i.product === item.product
+            );
+            if (updatedItem) {
+              // 只更新需要更新的屬性，避免整個物件替換導致界面跳動
+              Object.keys(updatedItem).forEach(key => {
+                if (key !== "_lastQuantity") {
+                  // 保留我們的臨時屬性
+                  this.$set(item, key, updatedItem[key]);
+                }
+              });
+            }
+          }
+        }
+
+        // 使用導入的 Message 而不是 this.$message
+        Message({
           message: "數量已更新",
           type: "success",
           duration: 1500,
-          offset: this.isMobile ? 20 : 40 // 移動設備上更靠上顯示消息
+          offset: this.isMobile ? 20 : 40
         });
       } catch (error) {
-        console.error("Failed to update quantity", error);
-        this.$message.error("更新數量失敗，請稍後再試");
-        // 重新獲取數據
-        this.fetchCartItems();
+        console.error("更新數量失敗:", error);
+
+        // 使用導入的 Message
+        Message({
+          message: "更新數量失敗，請稍後再試",
+          type: "error",
+          duration: 1500
+        });
+
+        // 恢復原數量和價格
+        item.quantity = originalQuantity;
+        this.cartSummary.subtotal = originalSubtotal;
+        this.cartSummary.finalAmount = originalTotal;
+        item._lastQuantity = originalQuantity;
+      } finally {
+        // 清除更新狀態
+        this.$set(this.updatingItems, item.product, false);
+
+        // 清除定時器
+        if (this.updateTimers[item.product]) {
+          clearTimeout(this.updateTimers[item.product]);
+          this.$delete(this.updateTimers, item.product);
+        }
       }
     },
 
-    // 移除購物車商品
-    async removeCartItem(item) {
-      try {
-        await Services.removeCartItem(item.id);
+    // 移除商品 - 使用防抖
+    removeCartItem(item) {
+      // 設置刪除狀態
+      this.$set(this.removingItems, item.id, true);
 
-        // 從本地購物車移除
-        const index = this.cartItems.findIndex(
-          cartItem => cartItem.id === item.id
-        );
-        if (index !== -1) {
-          this.cartItems.splice(index, 1);
+      // 調用防抖函數
+      this.debouncedRemoveItem(item);
+    },
+
+    // 實際執行刪除的函數
+    async performRemoveItem(item) {
+      // 先從本地購物車移除，不等待API響應
+      const index = this.cartItems.findIndex(
+        cartItem => cartItem.id === item.id
+      );
+      const removedItem = index !== -1 ? this.cartItems[index] : null;
+
+      // 保存原數據以便恢復
+      const originalItems = [...this.cartItems];
+      const originalSummary = { ...this.cartSummary };
+
+      if (index !== -1) {
+        // 從本地列表中移除
+        this.cartItems.splice(index, 1);
+
+        // 更新本地購物車總計
+        if (removedItem) {
+          const itemTotal = removedItem.price * removedItem.quantity;
+          this.cartSummary.subtotal = parseFloat(
+            (this.cartSummary.subtotal - itemTotal).toFixed(2)
+          );
+          this.cartSummary.finalAmount = parseFloat(
+            (this.cartSummary.finalAmount - itemTotal).toFixed(2)
+          );
+          this.cartSummary.totalQuantity -= removedItem.quantity;
+
+          // 如果有贈品，更新贈品數量
+          if (removedItem.gifts && removedItem.gifts.length > 0) {
+            const giftQuantity = removedItem.gift_quantity || 0;
+            this.cartSummary.totalGifts = Math.max(
+              0,
+              this.cartSummary.totalGifts - giftQuantity
+            );
+          }
+        }
+      }
+
+      try {
+        // 向後端發送刪除請求
+        const response = await Services.removeCartItem(item.id);
+
+        console.log("移除商品返回結果:", response); // 輸出響應查看結構
+
+        // 如果服務器返回了更新後的購物車信息，使用服務器的數據
+        if (response && response.summary) {
+          this.cartSummary = response.summary;
+
+          // 如果服務器也返回了最新商品列表，使用服務器的列表
+          if (response.items) {
+            this.cartItems = response.items;
+          }
         }
 
-        this.$message({
+        // 使用導入的 Message
+        Message({
           message: "商品已移除",
           type: "success",
           duration: 1500,
           offset: this.isMobile ? 20 : 40
         });
       } catch (error) {
-        console.error("Failed to remove item", error);
-        this.$message.error("移除商品失敗，請稍後再試");
+        console.error("移除商品失敗:", error);
+
+        Message({
+          message: "移除商品失敗，請稍後再試",
+          type: "error",
+          duration: 1500
+        });
+
+        // 恢復原數據
+        this.cartItems = originalItems;
+        this.cartSummary = originalSummary;
+      } finally {
+        // 清除刪除狀態
+        this.$set(this.removingItems, item.id, false);
       }
     },
 
@@ -366,28 +573,116 @@ export default {
       }
     },
 
-    // 提交訂單
-    async submitOrder() {
-      this.submitting = true;
+    // 提交訂單 - 使用防抖
+    submitOrder() {
+      if (this.processingAction) return;
+      this.processingAction = true;
+      this.debouncedSubmitOrder();
+    },
 
+    // 實際執行提交訂單的函數
+    async performSubmitOrder() {
       try {
-        // 實際項目中這裡應該發送真實API請求
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // 構建訂單數據，包含購物車商品
+        const orderData = {
+          // 將購物車商品轉換為後端期望的格式
+          cart_items: this.cartItems.map(item => ({
+            product: item.product,
+            activity: item.activity || null,
+            quantity: item.quantity,
+            price: item.price,
+            original_price: item.original_price || item.price,
+            name: item.name || item.product_name,
+            gifts: item.gifts || []
+          })),
+          shipping_info: {
+            name: this.shippingAddress.name,
+            phone: this.shippingAddress.phone,
+            address: this.shippingAddress.address,
+            notes: this.shippingAddress.notes || "",
+            postalCode: this.shippingAddress.postalCode || ""
+          },
+          payment_method: this.paymentMethod, // 注意這裡應使用 snake_case
+          order_notes: ""
+        };
 
-        // 生成訂單編號
-        this.orderNumber =
-          "ORD" +
-          Date.now()
-            .toString()
-            .slice(-8);
+        console.log("發送訂單數據:", orderData); // 調試用
+
+        // 調用購物車結帳 API
+        const response = await Services.createOrder(orderData);
+
+        console.log("訂單創建完整響應:", response); // 增加完整響應調試日誌
+
+        // 根據實際的API響應結構來獲取訂單編號
+        let orderNumber = null;
+
+        // response 已經被 extractData 處理，所以是 response.data
+        if (
+          response &&
+          response.data &&
+          response.data.order &&
+          response.data.order.order_number
+        ) {
+          orderNumber = response.data.order.order_number;
+        }
+        // 如果上面的路徑不對，試試直接訪問
+        else if (response && response.order && response.order.order_number) {
+          orderNumber = response.order.order_number;
+        }
+
+        if (orderNumber) {
+          this.orderNumber = orderNumber;
+        } else {
+          // 如果沒有收到訂單編號，視為提交失敗
+          console.error("無法從響應中提取訂單編號，完整響應:", response);
+          throw new Error("服務器未返回訂單編號，請聯繫客服確認訂單狀態");
+        }
+
+        // 訂單創建成功後，清空購物車數據
+        this.cartItems = [];
+        this.cartSummary = {
+          subtotal: 0,
+          itemDiscounts: 0,
+          orderDiscounts: 0,
+          finalAmount: 0,
+          totalQuantity: 0,
+          totalGifts: 0
+        };
 
         // 顯示成功對話框
         this.orderSuccessDialogVisible = true;
+
+        // 記錄成功信息
+        console.log("訂單創建成功:", response);
+
+        // 顯示成功消息
+        Message({
+          message: "訂單提交成功！訂單編號: " + this.orderNumber,
+          type: "success",
+          duration: 3000
+        });
       } catch (error) {
-        console.error("Failed to submit order", error);
-        this.$message.error("訂單提交失敗，請稍後再試");
+        console.error("訂單提交失敗:", error);
+
+        // 顯示詳細錯誤信息
+        let errorMessage = "訂單提交失敗，請稍後再試";
+
+        // 如果有API返回的詳細錯誤信息，優先使用
+        if (
+          error.response &&
+          error.response.data &&
+          error.response.data.message
+        ) {
+          errorMessage = error.response.data.message;
+        }
+
+        Message({
+          message: errorMessage,
+          type: "error",
+          duration: 5000
+        });
       } finally {
-        this.submitting = false;
+        this.processingAction = false;
       }
     },
 
@@ -413,32 +708,6 @@ export default {
     // 格式化價格
     formatPrice(price) {
       return price.toFixed(2);
-    },
-
-    // 生成模擬購物車數據（開發/測試使用）
-    generateMockCartItems() {
-      const items = [];
-      const itemCount = Math.floor(Math.random() * 3) + 2; // 隨機2-4個商品
-
-      for (let i = 0; i < itemCount; i++) {
-        const price = Math.floor(Math.random() * 1000) + 100;
-        const quantity = Math.floor(Math.random() * 3) + 1;
-        const activityIndex = Math.floor(Math.random() * 10) + 1;
-
-        items.push({
-          id: `cart-item-${i + 1}`,
-          productId: `product-${activityIndex}-${i + 1}`,
-          activityId: `activity-${activityIndex}`,
-          activityName: `員工優惠活動 ${activityIndex}`,
-          name: `商品 ${i + 1}`,
-          price: price,
-          quantity: quantity,
-          maxQuantity: 10,
-          imageUrl: `https://via.placeholder.com/120x120?text=Product+${i + 1}`
-        });
-      }
-
-      return items;
     }
   }
 };
@@ -517,6 +786,11 @@ $mobile-padding: 16px;
 
 .step-container {
   padding: 20px;
+}
+
+.loading-container {
+  padding: 20px;
+  flex-grow: 1;
 }
 
 .checkout-footer {
@@ -824,6 +1098,95 @@ $mobile-padding: 16px;
     bottom: 70px;
     width: 36px;
     height: 36px;
+  }
+}
+
+/* 添加購物車相關的樣式 */
+.subtle-updating {
+  /* 僅添加細微的邊框變化或顏色變化 */
+  border-color: #d9ecff !important;
+}
+
+/* 添加過渡動畫 */
+.step-container {
+  transition: opacity 0.3s ease;
+}
+
+/* 骨架屏樣式 */
+.el-skeleton {
+  padding: 16px;
+}
+
+/* 當數據正在加載時的過渡效果 */
+.loading-container {
+  transition: opacity 0.3s ease;
+}
+
+/* 添加按鈕樣式覆蓋 */
+.el-button.action-button {
+  font-weight: 500;
+  letter-spacing: 0.5px;
+
+  &[type="primary"] {
+    background-color: $primary-color;
+    border-color: $primary-color;
+
+    &:hover,
+    &:focus {
+      background-color: lighten($primary-color, 10%);
+      border-color: lighten($primary-color, 10%);
+    }
+
+    &:active {
+      background-color: darken($primary-color, 10%);
+      border-color: darken($primary-color, 10%);
+    }
+
+    &.is-disabled,
+    &.is-disabled:hover,
+    &.is-disabled:focus,
+    &.is-disabled:active {
+      background-color: #a0cfff;
+      border-color: #a0cfff;
+    }
+  }
+}
+
+/* 添加購物車項目的轉場動畫 */
+.cart-item {
+  transition: all 0.3s ease-out;
+
+  &:hover {
+    background-color: #f9f9f9;
+  }
+}
+
+/* 防止按鈕在Loading狀態被連續點擊 */
+.el-button.is-loading {
+  pointer-events: none;
+}
+
+/* 優化移動端的操作反饋 */
+@media (max-width: 768px) {
+  .el-button,
+  .el-input-number,
+  .el-tag {
+    transform: scale(1);
+    transition: transform 0.1s ease;
+
+    &:active {
+      transform: scale(0.96);
+    }
+  }
+
+  .delete-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+
+    i {
+      font-size: 12px;
+    }
   }
 }
 </style>

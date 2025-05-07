@@ -64,12 +64,9 @@ export const productsColumns = {
   history: [
     baseColumns.historyFields.datetime,
     baseColumns.historyFields.type,
-    { prop: "productCode", label: "品號", width: 150 },
-    { prop: "field", label: "異動欄位", width: 150 },
-    baseColumns.historyFields.beforeValue,
-    baseColumns.historyFields.afterValue,
+    { prop: "changes", label: "變更內容", minWidth: 300 },
     baseColumns.historyFields.operator,
-    baseColumns.commonFields.remark
+    { prop: "reason", label: "變更原因", width: 150 }
   ]
 };
 

@@ -2,23 +2,23 @@
   <div class="product-details-section">
     <el-tabs type="card">
       <el-tab-pane label="商品介紹">
-        <div class="details-content" v-html="product.descriptionHtml"></div>
-        <div v-if="!product.descriptionHtml" class="empty-content">
+        <div class="details-content" v-html="product.description"></div>
+        <div v-if="!product.description" class="empty-content">
           暫無商品介紹
         </div>
       </el-tab-pane>
       <el-tab-pane label="規格參數">
-        <div class="specifications" v-if="product.specificationHtml">
-          <div v-html="product.specificationHtml"></div>
+        <div class="specifications" v-if="product.specification_html">
+          <div v-html="product.specification_html"></div>
         </div>
         <div v-else class="empty-content">
           暫無規格參數
         </div>
       </el-tab-pane>
       <el-tab-pane label="注意事項">
-        <div class="notes-content" v-if="product.tags && product.tags.length">
+        <div class="notes-content" v-if="product.tags">
           <ul class="tag-list">
-            <li v-for="(tag, index) in product.tags" :key="index">
+            <li v-for="(tag, index) in formattedTags" :key="index">
               {{ tag }}
             </li>
           </ul>
@@ -34,20 +34,31 @@
 <script>
 export default {
   name: "ProductTabs",
-
   props: {
     product: {
       type: Object,
       required: true
     }
   },
-
   computed: {
-    // 檢查是否有規格參數
-    hasSpecifications() {
-      return (
-        this.product.specifications && this.product.specifications.length > 0
-      );
+    // 處理標籤數據
+    formattedTags() {
+      if (!this.product.tags) return [];
+
+      // 檢查標籤格式，可能是以 '- ' 開頭的多行文本
+      // 或者已經是數組
+      if (typeof this.product.tags === "string") {
+        // 處理以 '- ' 或 '\n- ' 格式分隔的標籤文本
+        return this.product.tags
+          .split("\n")
+          .map(tag => tag.trim())
+          .filter(tag => tag.length > 0)
+          .map(tag => (tag.startsWith("- ") ? tag.substring(2) : tag));
+      } else if (Array.isArray(this.product.tags)) {
+        return this.product.tags;
+      }
+
+      return [];
     }
   }
 };
@@ -67,8 +78,10 @@ $box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 
   .tag-list {
     padding-left: 20px;
+
     li {
       margin-bottom: 8px;
+      list-style-type: disc;
     }
   }
 
@@ -87,6 +100,26 @@ $box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
     color: #909399;
     text-align: center;
     padding: 40px 0;
+  }
+
+  ::v-deep .product-spec-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+  }
+
+  ::v-deep .product-spec-table th {
+    background: #f5f7fa;
+    text-align: left;
+    padding: 10px;
+    width: 120px;
+    font-weight: bold;
+    border: 1px solid #ebeef5;
+  }
+
+  ::v-deep .product-spec-table td {
+    padding: 10px;
+    border: 1px solid #ebeef5;
   }
 
   .specifications {

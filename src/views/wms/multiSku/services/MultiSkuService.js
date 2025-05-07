@@ -1,25 +1,47 @@
 // client/src/views/wms/multiSku/services/MultiSkuService.js
-import axios from "axios";
-// import { API_BASE_URL } from "@/config/api";
+import { itemApi, materialCategoryApi, historyApi } from "@/api/shop";
 
 /**
  * MultiSkuService - 提供品號管理相關的數據與操作
  */
 export default class MultiSkuService {
-  static USE_MOCK = true; // 設定為 true 使用模擬數據，false 使用實際 API
-
   /**
    * 獲取品號清單
    * @returns {Promise<Array>} 品號資料陣列
    */
   static async getProductList() {
-    if (this.USE_MOCK) {
-      return this._getMockProductList();
-    }
-
     try {
-      const response = await axios.get(`${API_BASE_URL}/products`);
-      return response.data;
+      const response = await itemApi.getItems();
+      console.log("品號API回應:", response); // 除錯用
+
+      // 檢查API回應格式是否正確
+      if (
+        response &&
+        response.code === 200 &&
+        response.data &&
+        response.data.results
+      ) {
+        // 使用 response.data.results 而非 response.data
+        return response.data.results.map(item => ({
+          id: item.id,
+          productCode: item.item_code,
+          productName: item.name,
+          categorys: item.material_category ? item.material_category_name : "",
+          specification: item.specification,
+          unit: item.unit,
+          boxSize: item.box_size,
+          status: item.status,
+          createdBy: item.created_by,
+          createdAt: item.create_time,
+          updatedBy: item.updated_by,
+          updatedAt: item.update_time,
+          remark: item.remark
+        }));
+      }
+
+      // 如果找不到資料或格式不對，返回空陣列
+      console.warn("API回應格式不符合預期:", response);
+      return [];
     } catch (error) {
       console.error("獲取品號資料失敗:", error);
       throw error;
@@ -29,18 +51,56 @@ export default class MultiSkuService {
   /**
    * 獲取品號異動記錄
    * @param {Object} params 查詢參數 (可選)
+   * @param {Number} itemId 品號ID (必須)
    * @returns {Promise<Array>} 品號異動記錄陣列
    */
-  static async getProductHistoryList(params) {
-    if (this.USE_MOCK) {
-      return this._getMockProductHistoryList();
-    }
-
+  static async getProductHistoryList(params, itemId) {
     try {
-      const response = await axios.get(`${API_BASE_URL}/products/history`, {
-        params
-      });
-      return response.data;
+      if (!itemId) {
+        console.warn("未提供品號ID，無法獲取歷史記錄");
+        return [];
+      }
+
+      const response = await itemApi.getItemHistory(itemId, params);
+      console.log("異動記錄API回應:", response);
+
+      if (
+        response &&
+        response.code === 200 &&
+        response.data &&
+        response.data.results
+      ) {
+        return response.data.results.map(history => {
+          let type = "update";
+          if (history.history_type === "+") type = "create";
+          else if (history.history_type === "-") type = "delete";
+
+          const changes = [];
+          if (history.changes) {
+            Object.keys(history.changes).forEach(field => {
+              const change = history.changes[field];
+              changes.push({
+                field,
+                oldValue: change.from,
+                newValue: change.to
+              });
+            });
+          }
+
+          return {
+            id: history.history_id || history.id,
+            datetime: history.history_date,
+            type,
+            productCode: history.item_code || "", // 後端要有這欄才有值
+            changedFields: changes,
+            operator: history.history_user_name || "未知使用者",
+            remark: history.history_change_reason || "異動品號資料"
+          };
+        });
+      }
+
+      console.warn("異動記錄API回應格式不符合預期:", response);
+      return [];
     } catch (error) {
       console.error("獲取品號異動記錄失敗:", error);
       throw error;
@@ -48,19 +108,88 @@ export default class MultiSkuService {
   }
 
   /**
-   * 獲取產品類別清單
-   * @returns {Promise<Array>} 產品類別陣列
+   * 查詢最近異動的品號記錄（不限單一品號）
+   * @param {Number} days - 要查詢的天數（預設 7 天）
+   * @returns {Promise<Array>} 最近異動的品號記錄
+   */
+  static async getRecentProductHistoryList(days = 7) {
+    try {
+      const response = await historyApi.getItemRecentHistory(days);
+      console.log("最近異動品號記錄 API 回應:", response);
+
+      if (
+        response &&
+        response.code === 200 &&
+        response.data &&
+        response.data.results
+      ) {
+        return response.data.results.map(history => {
+          let type = "update";
+          if (history.history_type === "+") type = "create";
+          else if (history.history_type === "~") type = "update";
+          else if (history.history_type === "-") type = "delete";
+
+          // 取得品號代碼（優先從 instance，其次從 delta）
+          let productCode = "";
+          if (history.instance && history.instance.item_code) {
+            productCode = history.instance.item_code;
+          } else if (history.delta && history.delta.item_code) {
+            productCode = history.delta.item_code;
+          }
+
+          // 回傳格式統一
+          return {
+            id: history.history_id || history.id,
+            datetime: history.history_date,
+            type,
+            productCode,
+            changes: history.changes || {}, // ✅ 統一支援 row.changes 結構
+            operator: history.history_user_name || "",
+            reason: history.history_change_reason || "異動品號資料"
+          };
+        });
+      }
+
+      console.warn("最近異動品號記錄 API 回應格式不符:", response);
+      return [];
+    } catch (error) {
+      console.error("獲取最近異動品號記錄失敗:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * 獲取物料類別清單
+   * @returns {Promise<Array>} 物料類別陣列
    */
   static async getProductCategories() {
-    if (this.USE_MOCK) {
-      return this._getMockProductCategories();
-    }
-
     try {
-      const response = await axios.get(`${API_BASE_URL}/product-categories`);
-      return response.data;
+      // 使用 materialCategoryApi 而非 categoryApi
+      const response = await materialCategoryApi.getMaterialCategories();
+      console.log("物料類別API回應:", response); // 除錯用
+
+      // 檢查API回應格式是否正確
+      if (
+        response &&
+        response.code === 200 &&
+        response.data &&
+        response.data.results
+      ) {
+        // 使用 response.data.results 而非 response.data
+        return response.data.results.map(category => ({
+          id: category.id,
+          label: category.name,
+          value: category.id,
+          description: category.description || "",
+          itemCount: category.item_count || 0
+        }));
+      }
+
+      // 如果找不到資料或格式不對，返回空陣列
+      console.warn("物料類別API回應格式不符合預期:", response);
+      return [];
     } catch (error) {
-      console.error("獲取產品類別失敗:", error);
+      console.error("獲取物料類別失敗:", error);
       throw error;
     }
   }
@@ -71,26 +200,59 @@ export default class MultiSkuService {
    * @returns {Promise<Object>} 儲存結果
    */
   static async saveProduct(productData) {
-    if (this.USE_MOCK) {
-      return this._mockSaveProduct(productData);
-    }
-
     try {
+      // 將前端資料格式轉換為 API 要求的格式
+      const apiData = {
+        item_code: productData.productCode,
+        name: productData.productName,
+        material_category: productData.categorys, // 使用 material_category 而不是 category
+        specification: productData.specification,
+        unit: productData.unit,
+        box_size: productData.boxSize,
+        status: productData.status,
+        remark: productData.remark
+      };
+
       let response;
       if (productData.id) {
         // 更新現有品號
-        response = await axios.put(
-          `${API_BASE_URL}/products/${productData.id}`,
-          productData
-        );
+        response = await itemApi.updateItem(productData.id, apiData);
       } else {
         // 新增品號
-        response = await axios.post(`${API_BASE_URL}/products`, productData);
+        response = await itemApi.createItem(apiData);
       }
-      return response.data;
+
+      console.log("儲存品號回應:", response); // 除錯用
+
+      // 檢查API回應是否成功
+      if (
+        response &&
+        (response.code === 200 || response.code === 201) &&
+        response.data
+      ) {
+        return {
+          success: true,
+          message: productData.id ? "品號資料更新成功" : "品號資料新增成功",
+          data: response.data
+        };
+      } else {
+        return {
+          success: false,
+          message: "儲存品號失敗: API回應格式不符合預期",
+          data: null
+        };
+      }
     } catch (error) {
       console.error("儲存品號資料失敗:", error);
-      throw error;
+      const errorDetail =
+        error.response && error.response.data && error.response.data.detail
+          ? error.response.data.detail
+          : error.message;
+      return {
+        success: false,
+        message: `儲存品號資料失敗: ${errorDetail}`,
+        error
+      };
     }
   }
 
@@ -100,41 +262,68 @@ export default class MultiSkuService {
    * @returns {Promise<Object>} 匯入結果
    */
   static async batchImportProducts(productList) {
-    if (this.USE_MOCK) {
-      return this._mockBatchImport(productList);
-    }
-
     try {
-      const response = await axios.post(
-        `${API_BASE_URL}/products/batch-import`,
-        { products: productList }
-      );
-      return response.data;
+      // 注意：此API在提供的shop.js中沒有對應的方法
+      // 這裡需要自行實現或使用一個逐一創建的方法
+
+      const successItems = [];
+      const failItems = [];
+
+      // 逐一處理每個品號
+      for (const product of productList) {
+        try {
+          const apiData = {
+            item_code: product.productCode,
+            name: product.productName,
+            material_category: product.categorys, // 使用 material_category 而不是 category
+            specification: product.specification,
+            unit: product.unit,
+            box_size: product.boxSize,
+            status: product.status || true,
+            remark: product.remark
+          };
+
+          const response = await itemApi.createItem(apiData);
+
+          // 檢查API回應是否成功
+          if (response && response.code === 201 && response.data) {
+            successItems.push(product);
+          } else {
+            failItems.push({
+              item: product,
+              error: "API回應格式不符合預期"
+            });
+          }
+        } catch (error) {
+          const errorDetail =
+            error.response && error.response.data && error.response.data.detail
+              ? error.response.data.detail
+              : error.message;
+          failItems.push({
+            item: product,
+            error: errorDetail
+          });
+        }
+      }
+
+      return {
+        success: failItems.length === 0,
+        message: `批次匯入完成，成功：${successItems.length}筆，失敗：${
+          failItems.length
+        }筆`,
+        detail: {
+          successCount: successItems.length,
+          failCount: failItems.length,
+          failItems
+        }
+      };
     } catch (error) {
       console.error("批次匯入品號失敗:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * 新增產品類別
-   * @param {Object} categorysData 類別資料
-   * @returns {Promise<Object>} 新增結果
-   */
-  static async addProductCategory(categorysData) {
-    if (this.USE_MOCK) {
-      return this._mockAddCategory(categorysData);
-    }
-
-    try {
-      const response = await axios.post(
-        `${API_BASE_URL}/product-categories`,
-        categorysData
-      );
-      return response.data;
-    } catch (error) {
-      console.error("新增產品類別失敗:", error);
-      throw error;
+      return {
+        success: false,
+        message: `批次匯入品號失敗: ${error.message}`,
+        error
+      };
     }
   }
 
@@ -144,281 +333,68 @@ export default class MultiSkuService {
    * @returns {Promise<Object>} 刪除結果
    */
   static async deleteProduct(productCode) {
-    if (this.USE_MOCK) {
-      return this._mockDeleteProduct(productCode);
-    }
-
     try {
-      const response = await axios.delete(
-        `${API_BASE_URL}/products/${productCode}`
-      );
-      return response.data;
+      // 需要先獲取品號的 ID
+      const itemsResponse = await itemApi.getItems({
+        search: productCode
+      });
+      console.log("查詢品號回應:", itemsResponse); // 除錯用
+
+      // 檢查API回應格式是否正確
+      if (
+        !(
+          itemsResponse &&
+          itemsResponse.code === 200 &&
+          itemsResponse.data &&
+          itemsResponse.data.results
+        )
+      ) {
+        return {
+          success: false,
+          message: "查詢品號失敗: API回應格式不符合預期"
+        };
+      }
+
+      const items = itemsResponse.data.results;
+      const item = items.find(item => item.item_code === productCode);
+
+      if (!item) {
+        throw new Error(`找不到品號: ${productCode}`);
+      }
+
+      const deleteResponse = await itemApi.deleteItem(item.id);
+      console.log("刪除品號回應:", deleteResponse); // 除錯用
+
+      // 檢查刪除操作回應 (通常是 204 No Content)
+      const isSuccess =
+        deleteResponse === undefined ||
+        deleteResponse === "" ||
+        deleteResponse === null ||
+        (deleteResponse &&
+          (deleteResponse.code === 204 || deleteResponse.code === 200));
+
+      if (isSuccess) {
+        return {
+          success: true,
+          message: `品號 ${productCode} 已成功刪除`
+        };
+      } else {
+        return {
+          success: false,
+          message: "刪除品號失敗: API回應格式不符合預期"
+        };
+      }
     } catch (error) {
       console.error("刪除品號失敗:", error);
-      throw error;
+      const errorDetail =
+        error.response && error.response.data && error.response.data.detail
+          ? error.response.data.detail
+          : error.message;
+      return {
+        success: false,
+        message: `刪除品號失敗: ${errorDetail}`,
+        error
+      };
     }
-  }
-
-  // ====== 以下為模擬數據方法 ======
-
-  /**
-   * 模擬品號列表數據
-   * @private
-   */
-  static async _getMockProductList() {
-    // 模擬API請求延遲
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // 品號列表測試數據
-    return [
-      {
-        id: "1",
-        productCode: "P001",
-        productName: "iPhone 15 Pro",
-        categorys: "smartphone",
-        specification: "256GB",
-        unit: "個",
-        boxSize: 10,
-        status: true,
-        createdBy: "admin",
-        createdAt: "2024-01-01 10:00:00",
-        updatedBy: "manager",
-        updatedAt: "2024-01-10 15:30:00",
-        remark: "新款旗艦機種"
-      },
-      {
-        id: "2",
-        productCode: "P002",
-        productName: "iPad Pro",
-        categorys: "tablet",
-        specification: "12.9吋",
-        unit: "個",
-        boxSize: 5,
-        status: true,
-        createdBy: "admin",
-        createdAt: "2024-01-15 09:45:00",
-        updatedBy: "admin",
-        updatedAt: "2024-02-05 14:20:00",
-        remark: "M2晶片"
-      },
-      {
-        id: "3",
-        productCode: "P003",
-        productName: "MacBook Pro",
-        categorys: "laptop",
-        specification: "14吋 M3 Pro",
-        unit: "台",
-        boxSize: 1,
-        status: true,
-        createdBy: "supervisor",
-        createdAt: "2024-02-10 11:30:00",
-        updatedBy: "supervisor",
-        updatedAt: "2024-02-10 11:30:00",
-        remark: "2023新款"
-      },
-      {
-        id: "4",
-        productCode: "P004",
-        productName: "Apple Watch Series 9",
-        categorys: "wearable",
-        specification: "45mm",
-        unit: "個",
-        boxSize: 20,
-        status: true,
-        createdBy: "admin",
-        createdAt: "2024-02-20 16:15:00",
-        updatedBy: "manager",
-        updatedAt: "2024-02-25 10:10:00",
-        remark: "支援全天候顯示"
-      },
-      {
-        id: "5",
-        productCode: "P005",
-        productName: "Galaxy S24 Ultra",
-        categorys: "smartphone",
-        specification: "512GB",
-        unit: "個",
-        boxSize: 10,
-        status: true,
-        createdBy: "admin",
-        createdAt: "2024-03-01 08:30:00",
-        updatedBy: "admin",
-        updatedAt: "2024-03-01 08:30:00",
-        remark: "三星旗艦機種"
-      }
-    ];
-  }
-
-  /**
-   * 模擬品號異動記錄數據
-   * @private
-   */
-  static async _getMockProductHistoryList() {
-    // 模擬API請求延遲
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // 品號異動記錄測試數據
-    return [
-      {
-        id: "1",
-        datetime: "2024-01-01 08:00:00",
-        type: "create",
-        productCode: "P001",
-        field: "all",
-        beforeValue: "",
-        afterValue: "新增品號資料",
-        operator: "admin",
-        remark: "新增品號"
-      },
-      {
-        id: "2",
-        datetime: "2024-01-10 10:15:00",
-        type: "update",
-        productCode: "P001",
-        field: "specification",
-        beforeValue: "128GB",
-        afterValue: "256GB",
-        operator: "manager",
-        remark: "規格調整"
-      },
-      {
-        id: "3",
-        datetime: "2024-01-20 14:30:00",
-        type: "update",
-        productCode: "P002",
-        field: "boxSize",
-        beforeValue: "3",
-        afterValue: "5",
-        operator: "admin",
-        remark: "裝箱容量更新"
-      },
-      {
-        id: "4",
-        datetime: "2024-02-05 09:45:00",
-        type: "create",
-        productCode: "P003",
-        field: "all",
-        beforeValue: "",
-        afterValue: "新增品號資料",
-        operator: "supervisor",
-        remark: "新增筆電品號"
-      },
-      {
-        id: "5",
-        datetime: "2024-02-15 16:20:00",
-        type: "create",
-        productCode: "P004",
-        field: "all",
-        beforeValue: "",
-        afterValue: "新增品號資料",
-        operator: "admin",
-        remark: "新增穿戴式產品"
-      },
-      {
-        id: "6",
-        datetime: "2024-03-01 11:10:00",
-        type: "update",
-        productCode: "P001",
-        field: "status",
-        beforeValue: "false",
-        afterValue: "true",
-        operator: "manager",
-        remark: "啟用產品"
-      }
-    ];
-  }
-
-  /**
-   * 模擬產品類別數據
-   * @private
-   */
-  static async _getMockProductCategories() {
-    // 模擬API請求延遲
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // 品號類別測試數據
-    return [
-      { id: "1", label: "原料", value: "smartphone" },
-      { id: "2", label: "白蝦成品", value: "tablet" },
-      { id: "3", label: "草蝦成品", value: "laptop" },
-      { id: "4", label: "拉長蝦成品", value: "wearable" }
-    ];
-  }
-
-  /**
-   * 模擬保存品號
-   * @private
-   */
-  static async _mockSaveProduct(productData) {
-    // 模擬API請求延遲
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    // 如果沒有 ID，則新增一個唯一 ID
-    if (!productData.id) {
-      productData.id = Date.now().toString();
-    }
-
-    // 模擬儲存成功
-    return {
-      success: true,
-      message: "品號資料儲存成功",
-      data: productData
-    };
-  }
-
-  /**
-   * 模擬批次匯入
-   * @private
-   */
-  static async _mockBatchImport(productList) {
-    // 模擬API請求延遲
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    // 模擬處理批次匯入
-    const successCount = productList.length;
-    const failCount = 0;
-
-    return {
-      success: true,
-      message: `批次匯入完成，成功：${successCount}筆，失敗：${failCount}筆`,
-      detail: {
-        successCount,
-        failCount,
-        failItems: []
-      }
-    };
-  }
-
-  /**
-   * 模擬新增類別
-   * @private
-   */
-  static async _mockAddCategory(categorysData) {
-    // 模擬API請求延遲
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    // 新增唯一 ID
-    categorysData.id = Date.now().toString();
-
-    // 模擬新增成功
-    return {
-      success: true,
-      message: "品號類別新增成功",
-      data: categorysData
-    };
-  }
-
-  /**
-   * 模擬刪除品號
-   * @private
-   */
-  static async _mockDeleteProduct(productCode) {
-    // 模擬API請求延遲
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    return {
-      success: true,
-      message: `品號 ${productCode} 已成功刪除`
-    };
   }
 }
