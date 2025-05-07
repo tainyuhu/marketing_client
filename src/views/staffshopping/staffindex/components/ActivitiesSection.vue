@@ -54,7 +54,7 @@
       >
         <!-- 活動圖片容器 -->
         <div class="activity-image">
-          <img :src="activity.imageUrl" :alt="activity.name" loading="lazy" />
+          <img :src="activity.image_url" :alt="activity.name" loading="lazy" />
 
           <!-- 標籤疊加層 -->
           <div class="activity-overlays">
@@ -106,12 +106,12 @@
           </div>
 
           <!-- 活動日期 -->
-          <div class="activity-dates">
+          <div class="activity-dates two-line">
             <i class="el-icon-date"></i>
-            <span
-              >{{ formatDate(activity.startDate) }} ~
-              {{ formatDate(activity.endDate) }}</span
-            >
+            <div class="date-lines">
+              <span>開始時間：{{ formatDate(activity.start_date) }}</span>
+              <span>結束時間：{{ formatDate(activity.end_date) }}</span>
+            </div>
           </div>
 
           <!-- 查看提示 -->
@@ -424,14 +424,24 @@ $font-size-xl: 22px;
   line-height: 1.4;
 }
 
-.activity-dates i {
-  margin-right: 4px;
-  flex-shrink: 0;
-}
+.activity-dates.two-line {
+  flex-direction: row;
+  align-items: flex-start;
 
-.activity-dates span {
-  display: inline-block;
-  width: 100%;
+  .date-lines {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.4;
+  }
+
+  i {
+    margin-right: 6px;
+    margin-top: 2px;
+  }
+
+  span {
+    white-space: nowrap;
+  }
 }
 
 /* 查看詳情提示 */

@@ -14,7 +14,6 @@
         :fields="searchFields"
         :show-fields="true"
         :show-time-search="true"
-        :show-tags="true"
         :search-placeholder="'搜尋訂單'"
         :immediate-search="true"
         @search="handleSearch"
@@ -49,12 +48,12 @@
               <span class="label">訂單日期：</span>
               <span class="value">{{ formatDate(order.orderDate) }}</span>
             </div>
-            <!-- 訂單狀態 (已註解) -->
-            <!-- <div class="order-status" v-if="order.status">
+            <!-- 訂單狀態 -->
+            <div class="order-status" v-if="order.status">
               <el-tag :type="getOrderStatusType(order.status)">
                 {{ getOrderStatusText(order.status) }}
               </el-tag>
-            </div> -->
+            </div>
             <div class="expand-icon">
               <i
                 :class="
@@ -76,7 +75,7 @@
                   class="product-item"
                 >
                   <div class="product-image">
-                    <img :src="item.imageUrl" :alt="item.name" />
+                    <img :src="item.image_url" :alt="item.name" />
                   </div>
                   <div class="product-info">
                     <div class="product-name">{{ item.name }}</div>
@@ -221,6 +220,7 @@
 import CombinedSearch from "@/components/SearchBox/CombinedSearch";
 import CustomerServiceDialog from "./components/CustomerServiceDialog";
 import ResponsivePagination from "@/components/Pagination/ResponsivePagination";
+import Services from "../services/Services.js";
 
 export default {
   name: "ConsumerOrders",
@@ -283,10 +283,11 @@ export default {
 
       // 訂單狀態定義
       orderStatusOptions: [
-        { value: 1, label: "已付款", type: "success" },
-        { value: 2, label: "已出貨", type: "primary" },
-        { value: 3, label: "已完成", type: "info" },
-        { value: 4, label: "已取消", type: "danger" }
+        { value: "pending_payment", label: "待付款", type: "warning" },
+        { value: "paid", label: "已付款", type: "info" },
+        { value: "completed", label: "已完成", type: "primary" },
+        { value: "cancelled", label: "已取消", type: "success" },
+        { value: "expired", label: "已逾期", type: "danger" }
       ]
     };
   },
@@ -365,119 +366,93 @@ export default {
     // 獲取訂單列表
     async fetchOrders() {
       this.loading = true;
-
       try {
-        // 實際專案中應該調用 API
-        // const response = await this.$api.getOrders();
-        // this.orders = response.data;
+        const response = await Services.getUserOrders({
+          page: 1,
+          limit: 100
+        });
 
-        // 測試數據
-        await this.mockFetchOrders();
+        if (!response || !response.data || !Array.isArray(response.data)) {
+          throw new Error("Invalid response format from API");
+        }
+
+        // 直接使用回應中的訂單項目，不需要額外請求
+        this.orders = response.data.map(order => {
+          return {
+            id: order.id,
+            orderNumber: order.order_number || `ORD-${order.id}`,
+            orderDate: order.create_time || new Date().toISOString(),
+            totalAmount: parseFloat(order.final_amount || 0),
+            totalItems: (order.items || []).reduce(
+              (sum, item) => sum + (parseInt(item.quantity) || 0),
+              0
+            ),
+            receiverName: order.receiver_name || "",
+            receiverPhone: order.receiver_phone || "",
+            receiverAddress: order.receiver_address || "",
+            paymentMethod: order.payment_method || "credit_card",
+            details: (order.items || []).map(item => ({
+              id: item.id,
+              name: item.product_name || "未知商品",
+              price: parseFloat(item.unit_price || 0),
+              quantity: parseInt(item.quantity) || 0,
+              image_url: item.image_url,
+              isGift: item.is_gift || false
+            })),
+            shippingNotes: order.shipping_notes || "",
+            orderNotes: order.order_notes || "",
+            status: order.status || "pending",
+            expanded: false
+          };
+        });
       } catch (error) {
         console.error("獲取訂單列表失敗", error);
         this.$message.error("獲取訂單列表失敗，請稍後再試");
+        this.orders = [];
       } finally {
         this.loading = false;
       }
     },
 
-    // 模擬獲取訂單數據（開發/測試用）
-    async mockFetchOrders() {
-      // 模擬延遲
-      await new Promise(resolve => setTimeout(resolve, 800));
-
-      const paymentMethods = ["bankTransfer", "creditCard", "mobilePay"];
-      const mockOrders = [];
-
-      // 生成隨機訂單
-      for (let i = 0; i < 15; i++) {
-        const orderDate = new Date();
-        orderDate.setDate(orderDate.getDate() - Math.floor(Math.random() * 30));
-
-        const orderNumber = `ORD${orderDate.getFullYear()}${String(
-          orderDate.getMonth() + 1
-        ).padStart(2, "0")}${String(i + 1).padStart(4, "0")}`;
-        const paymentMethod =
-          paymentMethods[Math.floor(Math.random() * paymentMethods.length)];
-
-        // 生成訂單明細
-        const itemCount = Math.floor(Math.random() * 3) + 8;
-        const orderDetails = [];
-        let totalAmount = 0;
-        let totalItems = 0;
-
-        for (let j = 0; j < itemCount; j++) {
-          const price = Math.floor(Math.random() * 1000) + 100;
-          const quantity = Math.floor(Math.random() * 3) + 1;
-          totalAmount += price * quantity;
-          totalItems += quantity;
-
-          orderDetails.push({
-            id: `item-${i}-${j}`,
-            name: `商品 ${j + 1} ${Array(5)
-              .fill(0)
-              .map(() =>
-                String.fromCharCode(Math.floor(Math.random() * 26) + 97)
-              )
-              .join("")}`,
-            price: price,
-            quantity: quantity,
-            imageUrl: `https://via.placeholder.com/80x80?text=Item+${j + 1}`
-          });
-        }
-
-        // 隨機訂單狀態
-        const status = Math.floor(Math.random() * 4) + 1;
-
-        // 隨機生成訂單備註和運輸備註
-        const shippingNotesOptions = [
-          "請在上班時間送達",
-          "週末不在家，請提前聯繫",
-          "請送貨到警衛室，謝謝！",
-          "大樓需要事先預約，請提前聯繫。聯絡方式：警衛室 02-1234-5678",
-          ""
-        ];
-
-        const orderNotesOptions = [
-          "有贈品請一併寄送",
-          "請確認包裝完好再出貨",
-          "這是送給朋友的禮物，希望包裝美觀一些",
-          "產品如有缺貨請先通知，不要直接替換其他型號",
-          "這是一個非常長的訂單備註，用來測試當文字內容過長時的顯示效果。希望能夠正確處理這種情況，讓用戶可以通過提示窗查看完整內容，而不是將文字截斷顯示省略號。這對於提升用戶體驗非常重要，尤其是當用戶需要查看詳細訂單信息時。",
-          ""
-        ];
-
-        // 生成訂單並設置預設為收合狀態
-        const newOrder = {
-          orderNumber: orderNumber,
-          orderDate: orderDate.toISOString(),
-          totalAmount: totalAmount,
-          totalItems: totalItems,
-          receiverName: "王小明",
-          receiverPhone: "0912345678",
-          receiverAddress: "台北市信義區松高路123號",
-          paymentMethod: paymentMethod,
-          details: orderDetails,
-          shippingNotes:
-            Math.random() > 0.5
-              ? shippingNotesOptions[
-                  Math.floor(Math.random() * shippingNotesOptions.length)
-                ]
-              : "",
-          orderNotes:
-            Math.random() > 0.5
-              ? orderNotesOptions[
-                  Math.floor(Math.random() * orderNotesOptions.length)
-                ]
-              : "",
-          status: status,
-          expanded: false // 預設收合狀態
-        };
-
-        mockOrders.push(newOrder);
+    // 創建訂單對象 (幫助處理訂單數據格式化)
+    createOrderObject(order, orderItems = [], totalItems = 0) {
+      // 計算總數量（如果沒有提供）
+      if (totalItems === 0 && orderItems.length > 0) {
+        totalItems = orderItems.reduce(
+          (sum, item) => sum + (parseInt(item.quantity) || 0),
+          0
+        );
       }
 
-      this.orders = mockOrders;
+      // 格式化訂單數據
+      return {
+        id: order.id,
+        orderNumber: order.order_number || `ORD-${order.id}`,
+        orderDate:
+          order.create_time ||
+          order.created_at ||
+          order.update_time ||
+          order.order_date,
+        totalAmount: parseFloat(order.final_amount || order.total_amount || 0),
+        totalItems: totalItems,
+        receiverName: order.receiver_name || order.customer_name || "",
+        receiverPhone: order.receiver_phone || order.customer_phone || "",
+        receiverAddress: order.receiver_address || order.delivery_address || "",
+        paymentMethod: order.payment_method || "credit_card",
+        details: orderItems.map(item => ({
+          id: item.id,
+          name: item.product_name || item.name || "未知商品",
+          price: parseFloat(item.unit_price || item.price || 0),
+          quantity: parseInt(item.quantity) || 0,
+          image_url:
+            item.image_url || "https://via.placeholder.com/80x80?text=No+Image",
+          isGift: item.is_gift || false
+        })),
+        shippingNotes: order.shipping_notes || order.transport_notes || "",
+        orderNotes: order.order_notes || order.notes || "",
+        status: order.status || "pending",
+        expanded: false // 預設收合狀態
+      };
     },
 
     // 處理搜索
@@ -498,10 +473,10 @@ export default {
 
     // 獲取支付方式文字
     getPaymentMethodText(method) {
+      if (!method) return "未設置";
+
       const methodMap = {
-        bankTransfer: "銀行轉帳",
-        creditCard: "信用卡",
-        mobilePay: "行動支付"
+        bankTransfer: "銀行轉帳"
       };
       return methodMap[method] || method;
     },
@@ -540,14 +515,13 @@ export default {
       this.currentPage = val;
     },
 
-    // 繼續購物 (已移除但保留方法供未來使用)
+    // 繼續購物
     goToShopping() {
       this.$router.push("/shop");
     }
   }
 };
 </script>
-
 <style lang="scss" scoped>
 // 變量定義
 $primary-color: #1890ff;
@@ -662,6 +636,11 @@ $font-size-xl: 24px;
             color: #909399;
             margin-right: 5px;
           }
+        }
+
+        .order-status {
+          flex: 1;
+          text-align: center;
         }
 
         .expand-icon {

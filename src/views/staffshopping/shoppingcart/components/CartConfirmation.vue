@@ -1,96 +1,86 @@
 <template>
   <div class="cart-confirmation">
-    <h2 class="section-title">確認商品信息</h2>
+    <h2 class="section-title">確認購物車商品</h2>
 
-    <!-- 購物車列表容器（帶卷軸） -->
-    <div class="cart-container">
-      <!-- 購物車內容 -->
-      <div v-if="cartItems.length > 0" class="cart-list">
-        <!-- 桌面版表頭 -->
-        <div class="cart-header desktop-only">
-          <div class="header-item header-product">商品</div>
-          <div class="header-item header-price">單價</div>
-          <div class="header-item header-quantity">數量</div>
-          <div class="header-item header-total">小計</div>
-          <div class="header-item header-action">操作</div>
-        </div>
+    <div v-if="cartItems.length === 0" class="empty-cart">
+      <el-empty description="購物車空空如也">
+        <template #description>
+          <p>您的購物車還沒有商品</p>
+        </template>
+        <el-button
+          type="primary"
+          size="small"
+          @click="$router.push('/staffshopping')"
+          >繼續購物</el-button
+        >
+      </el-empty>
+    </div>
 
-        <!-- 商品卡片列表 -->
-        <div class="item-cards">
-          <div v-for="item in cartItems" :key="item.id" class="cart-item-card">
-            <!-- 桌面版佈局 -->
-            <div class="desktop-layout">
-              <div class="item-product">
-                <div class="item-image">
-                  <img :src="item.imageUrl" :alt="item.name" />
-                </div>
-                <div class="item-info">
-                  <div class="item-name">{{ item.name }}</div>
-                  <div class="item-activity">{{ item.activityName }}</div>
-                </div>
-              </div>
-
-              <div class="item-price">NT${{ formatPrice(item.price) }}</div>
-
-              <div class="item-quantity">
-                <el-input-number
-                  v-model="item.quantity"
-                  :min="1"
-                  :max="item.maxQuantity"
-                  size="small"
-                  @change="updateQuantity(item)"
-                ></el-input-number>
-              </div>
-
-              <div class="item-total">
-                NT${{ formatPrice(item.price * item.quantity) }}
-              </div>
-
-              <div class="item-action">
+    <div v-else class="cart-content">
+      <!-- 購物車列表 - 添加固定高度和卷軸 -->
+      <div class="cart-list">
+        <div v-for="item in cartItems" :key="item.id" class="cart-item">
+          <div class="item-main">
+            <div class="item-image">
+              <img :src="item.imageUrl" :alt="item.name" />
+            </div>
+            <div class="item-info">
+              <div class="item-top">
+                <div class="item-name">{{ item.name }}</div>
                 <el-button
                   type="danger"
                   icon="el-icon-delete"
                   circle
-                  size="small"
+                  size="mini"
+                  class="delete-btn"
                   @click="removeItem(item)"
+                  :loading="removingItems[item.id]"
+                  :disabled="removingItems[item.id]"
                 ></el-button>
               </div>
-            </div>
-
-            <!-- 手機版佈局 -->
-            <div class="mobile-layout">
-              <div class="mobile-row">
-                <div class="item-image">
-                  <img :src="item.imageUrl" :alt="item.name" />
-                </div>
-                <div class="mobile-info">
-                  <div class="item-name">{{ item.name }}</div>
-                  <div class="item-activity">{{ item.activityName }}</div>
-                  <div class="item-price mobile-price">
-                    單價: NT${{ formatPrice(item.price) }}
-                  </div>
-                </div>
-              </div>
-
-              <div class="mobile-actions">
-                <div class="quantity-control">
-                  <span class="control-label">數量:</span>
+              <div class="item-price">NT${{ formatPrice(item.price) }}</div>
+              <div class="item-actions-row">
+                <div class="item-quantity">
                   <el-input-number
                     v-model="item.quantity"
                     :min="1"
-                    :max="item.maxQuantity"
+                    :max="item.maxQuantity || 99"
                     size="mini"
                     @change="updateQuantity(item)"
+                    :class="{
+                      'subtle-updating': updatingItems[item.product]
+                    }"
                   ></el-input-number>
                 </div>
-                <div class="remove-btn">
-                  <el-button
-                    type="danger"
-                    icon="el-icon-delete"
-                    size="mini"
-                    @click="removeItem(item)"
-                    >移除</el-button
-                  >
+                <div class="item-total">
+                  NT${{ formatPrice(item.price * item.quantity) }}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 贈品部分 -->
+          <div v-if="item.gifts && item.gifts.length > 0" class="item-gifts">
+            <div class="gifts-header">
+              <el-tag size="mini" type="success">贈品</el-tag>
+              <span v-if="item.promotion_label" class="promotion-label">{{
+                item.promotion_label
+              }}</span>
+            </div>
+            <div class="gifts-list">
+              <div
+                v-for="(gift, giftIndex) in item.gifts"
+                :key="giftIndex"
+                class="gift-item"
+              >
+                <div class="gift-image">
+                  <img :src="gift.imageUrl" :alt="gift.name" />
+                </div>
+                <div class="gift-info">
+                  <div class="gift-name">{{ gift.name }}</div>
+                  <div class="gift-quantity">
+                    x {{ item.gift_quantity || 0 }}
+                  </div>
                 </div>
               </div>
             </div>
@@ -98,43 +88,34 @@
         </div>
       </div>
 
-      <!-- 空購物車提示 -->
-      <div v-else class="empty-cart">
-        <el-empty description="購物車空空如也">
-          <template #description>
-            <p>您的購物車還沒有商品</p>
-          </template>
-          <el-button type="primary" @click="goToShopping">去選購</el-button>
-        </el-empty>
+      <!-- 訂單摘要部分 -->
+      <div class="cart-summary">
+        <div class="summary-item">
+          <span>商品總額:</span>
+          <span class="summary-value">NT${{ formatPrice(subtotal) }}</span>
+        </div>
+        <div class="summary-item">
+          <span>商品數量:</span>
+          <span class="summary-value">{{ totalQuantity }} 件</span>
+        </div>
+        <!-- 贈品總數 -->
+        <div v-if="totalGifts > 0" class="summary-item">
+          <span>贈品數量:</span>
+          <span class="summary-value gift-value"> {{ totalGifts }} 件 </span>
+        </div>
+        <div v-if="orderDiscounts > 0" class="summary-item discount">
+          <span>滿額折扣:</span>
+          <span class="summary-value discount-value">
+            NT${{ formatPrice(orderDiscounts) }}
+          </span>
+        </div>
+        <div class="summary-item final">
+          <span>應付金額:</span>
+          <span class="summary-value final-value">
+            NT${{ formatPrice(finalAmount) }}
+          </span>
+        </div>
       </div>
-    </div>
-
-    <!-- 訂單統計卡片 -->
-    <div class="order-summary-card">
-      <div class="summary-title">訂單摘要</div>
-      <div class="summary-row">
-        <span>商品總數:</span>
-        <span>{{ totalItems }} 件</span>
-      </div>
-      <div class="summary-row">
-        <span>商品總額:</span>
-        <span class="price">NT${{ formatPrice(totalAmount) }}</span>
-      </div>
-      <div class="summary-row total-row">
-        <span>應付總額:</span>
-        <span class="total-price">NT${{ formatPrice(totalAmount) }}</span>
-      </div>
-    </div>
-
-    <!-- 備註信息卡片 -->
-    <div class="order-notes-card">
-      <div class="notes-title">訂單備註</div>
-      <el-input
-        type="textarea"
-        :rows="3"
-        placeholder="有什麼需要告訴我們的嗎？"
-        v-model="orderNotes"
-      ></el-input>
     </div>
   </div>
 </template>
@@ -148,190 +129,150 @@ export default {
       type: Array,
       required: true
     },
-    isDesktop: {
+    isMobile: {
       type: Boolean,
-      default: true
+      default: false
+    },
+    updatingItems: {
+      type: Object,
+      default: () => ({})
+    },
+    removingItems: {
+      type: Object,
+      default: () => ({})
     }
   },
 
-  data() {
-    return {
-      orderNotes: ""
-    };
-  },
-
   computed: {
-    // 計算商品總數
-    totalItems() {
-      return this.cartItems.reduce((total, item) => total + item.quantity, 0);
+    subtotal() {
+      return this.cartItems.reduce((total, item) => {
+        return total + item.price * item.quantity;
+      }, 0);
     },
 
-    // 計算總金額
-    totalAmount() {
-      return this.cartItems.reduce(
-        (total, item) => total + item.price * item.quantity,
-        0
-      );
+    totalQuantity() {
+      return this.cartItems.reduce((total, item) => {
+        return total + item.quantity;
+      }, 0);
+    },
+
+    totalGifts() {
+      return this.cartItems.reduce((total, item) => {
+        if (item.gifts && item.gifts.length > 0) {
+          return total + (item.gift_quantity || 0);
+        }
+        return total;
+      }, 0);
+    },
+
+    orderDiscounts() {
+      // 這裡可以根據業務邏輯計算折扣
+      // 示例: 滿1000減100
+      return this.subtotal >= 1000 ? 100 : 0;
+    },
+
+    finalAmount() {
+      return this.subtotal - this.orderDiscounts;
     }
   },
 
   methods: {
-    // 更新商品數量
     updateQuantity(item) {
       this.$emit("update-quantity", item);
     },
 
-    // 移除商品
     removeItem(item) {
-      this.$confirm("確定要從購物車中移除該商品嗎?", "提示", {
-        confirmButtonText: "確定",
-        cancelButtonText: "取消",
-        type: "warning"
-      })
-        .then(() => {
-          this.$emit("remove-item", item);
-        })
-        .catch(() => {
-          // 取消操作
-        });
+      this.$emit("remove-item", item);
     },
 
-    // 格式化價格
     formatPrice(price) {
       return price.toFixed(2);
-    },
-
-    // 去購物
-    goToShopping() {
-      this.$router.push("/staffshopping");
     }
   }
 };
 </script>
 
 <style lang="scss" scoped>
-// 變量定義
 $primary-color: #1890ff;
 $success-color: #52c41a;
 $warning-color: #faad14;
 $danger-color: #ff4d4f;
 $border-radius: 8px;
-$card-border-radius: 12px;
-$box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
-$card-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-$transition: all 0.3s ease;
 
 // 字體大小
 $font-size-xs: 12px;
 $font-size-s: 14px;
 $font-size-base: 16px;
 $font-size-lg: 18px;
-$font-size-xl: 20px;
-
-// 間距
-$spacing-xs: 4px;
-$spacing-s: 8px;
-$spacing-m: 16px;
-$spacing-l: 24px;
-$spacing-xl: 32px;
 
 .cart-confirmation {
   width: 100%;
 }
 
 .section-title {
-  font-size: $font-size-xl;
+  margin-top: 0;
+  margin-bottom: 20px;
+  font-size: $font-size-lg;
   color: #303133;
-  margin: 0 0 $spacing-l;
-  padding-bottom: $spacing-m;
-  border-bottom: 1px solid #f0f0f0;
 }
 
-// 購物車容器（有限高度加卷軸）
-.cart-container {
-  margin-bottom: $spacing-l;
-  background-color: #fff;
-  border-radius: $card-border-radius;
-  box-shadow: $card-shadow;
-  overflow: hidden;
-}
-
-.cart-list {
-  width: 100%;
-  max-height: 480px;
-  overflow-y: auto;
-  padding: $spacing-m;
-}
-
-.cart-header {
-  display: flex;
-  align-items: center;
-  background-color: #f5f7fa;
-  padding: $spacing-m;
-  font-weight: 500;
-  color: #606266;
-  border-radius: $border-radius $border-radius 0 0;
-  margin-bottom: $spacing-m;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.header-item {
+.empty-cart {
+  padding: 30px 0;
   text-align: center;
 }
 
-.header-product {
-  flex: 3;
-  text-align: left;
-}
-
-.header-price,
-.header-quantity,
-.header-total,
-.header-action {
-  flex: 1;
-}
-
-// 商品卡片列表
-.item-cards {
+/* 添加購物車內容容器 */
+.cart-content {
   display: flex;
   flex-direction: column;
-  gap: $spacing-m;
 }
 
-.cart-item-card {
-  background-color: #fff;
-  border-radius: $border-radius;
+/* 修改購物車列表為固定高度並添加卷軸 */
+.cart-list {
+  max-height: 400px; /* 設定固定高度 */
+  overflow-y: auto; /* 允許垂直卷軸 */
+  margin-bottom: 20px;
   border: 1px solid #ebeef5;
-  overflow: hidden;
-  transition: $transition;
+  border-radius: $border-radius;
+  background-color: #fff;
 
-  &:hover {
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  /* 美化卷軸樣式 */
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: #c0c4cc;
+    border-radius: 3px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background-color: #f4f4f5;
   }
 }
 
-// 桌面版商品佈局
-.desktop-layout {
-  display: flex;
-  align-items: center;
-  padding: $spacing-m;
+.cart-item {
+  padding: 12px 10px;
+  border-bottom: 1px solid #f0f0f0;
+  position: relative;
+
+  &:last-child {
+    border-bottom: none;
+  }
 }
 
-.item-product {
-  flex: 3;
+.item-main {
   display: flex;
-  align-items: center;
+  margin-bottom: 10px;
 }
 
 .item-image {
-  width: 80px;
-  height: 80px;
+  width: 70px;
+  height: 70px;
+  min-width: 70px;
   overflow: hidden;
   border-radius: 4px;
-  margin-right: $spacing-m;
-  flex-shrink: 0;
+  margin-right: 12px;
 
   img {
     width: 100%;
@@ -341,302 +282,229 @@ $spacing-xl: 32px;
 }
 
 .item-info {
+  flex: 1;
   overflow: hidden;
-  flex-grow: 1;
+}
+
+.item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 6px;
 }
 
 .item-name {
   font-size: $font-size-base;
   color: #303133;
-  margin-bottom: $spacing-s;
   font-weight: 500;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-}
-
-.item-activity {
-  font-size: $font-size-s;
-  color: $primary-color;
-  background-color: rgba(24, 144, 255, 0.1);
-  padding: 2px 6px;
-  border-radius: 2px;
-  display: inline-block;
-}
-
-.item-price,
-.item-quantity,
-.item-total,
-.item-action {
   flex: 1;
-  text-align: center;
 }
 
-.item-price,
-.item-total {
-  font-size: $font-size-base;
-  font-weight: 500;
+.delete-btn {
+  padding: 4px;
+  margin-left: 8px;
 }
 
 .item-price {
-  color: #303133; // 黑色單價
+  font-size: $font-size-base;
+  color: $danger-color;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.item-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.item-quantity {
+  flex: 1;
+  position: relative;
 }
 
 .item-total {
-  color: $danger-color; // 紅色小計
-}
-
-// 手機版商品佈局
-.mobile-layout {
-  display: none;
-  padding: $spacing-m;
-}
-
-.mobile-row {
-  display: flex;
-  margin-bottom: $spacing-m;
-}
-
-.mobile-info {
-  flex-grow: 1;
-  margin-left: $spacing-m;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.mobile-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-top: $spacing-m;
-  border-top: 1px dashed #ebeef5;
-}
-
-.quantity-control {
-  display: flex;
-  align-items: center;
-
-  .control-label {
-    margin-right: $spacing-s;
-    color: #606266;
-  }
-}
-
-.price-total {
-  font-weight: 500;
-
-  .total-label {
-    color: #606266;
-    margin-right: $spacing-s;
-  }
-
-  .total-value {
-    color: $danger-color;
-    font-size: $font-size-lg;
-  }
-}
-
-// 空購物車提示
-.empty-cart {
-  padding: $spacing-xl 0;
-  text-align: center;
-}
-
-// 訂單摘要卡片
-.order-summary-card {
-  background-color: #fff;
-  border-radius: $card-border-radius;
-  padding: $spacing-l;
-  margin-bottom: $spacing-l;
-  box-shadow: $card-shadow;
-}
-
-.summary-title {
-  font-size: $font-size-lg;
-  font-weight: 500;
-  margin-bottom: $spacing-l;
-  color: #303133;
-  border-bottom: 1px solid #f0f0f0;
-  padding-bottom: $spacing-m;
-}
-
-.summary-row {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: $spacing-m;
   font-size: $font-size-base;
-
-  .price {
-    color: $danger-color;
-  }
+  font-weight: 600;
+  color: $danger-color;
+  margin: 0 10px;
+  white-space: nowrap;
 }
 
-.total-row {
-  margin-top: $spacing-m;
-  padding-top: $spacing-m;
-  border-top: 1px dashed #ebeef5;
-  font-weight: 500;
-
-  .total-price {
-    color: $danger-color;
-    font-size: $font-size-xl;
-  }
+/* 贈品樣式 */
+.item-gifts {
+  padding: 8px;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+  margin-top: 6px;
 }
 
-// 備註信息卡片
-.order-notes-card {
-  background-color: #fff;
-  border-radius: $card-border-radius;
-  padding: $spacing-l;
-  margin-bottom: $spacing-l;
-  box-shadow: $card-shadow;
+.subtle-updating {
+  /* 僅添加細微的邊框變化或顏色變化 */
+  border-color: #d9ecff !important;
 }
 
-.notes-title {
-  font-size: $font-size-lg;
-  font-weight: 500;
-  margin-bottom: $spacing-l;
-  color: #303133;
-}
-
-// 只在桌面顯示的元素
-.desktop-only {
+.gifts-header {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
 }
 
-.mobile-price {
-  color: #303133; // 確保手機版單價也是黑色
+.promotion-label {
+  font-size: $font-size-xs;
+  color: $warning-color;
+  font-weight: 500;
 }
 
-@media (max-width: 768px) {
-  .desktop-only {
-    display: none;
-  }
+.gifts-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
 
-  .desktop-layout {
-    display: none;
-  }
+.gift-item {
+  display: flex;
+  align-items: center;
+  background-color: #ffffff;
+  padding: 4px;
+  border-radius: 4px;
+  width: 100%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
 
-  .mobile-layout {
-    display: block;
-  }
+.gift-image {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  overflow: hidden;
+  border-radius: 2px;
+  margin-right: 6px;
 
-  .section-title {
-    font-size: $font-size-lg;
-    margin-bottom: $spacing-m;
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
+}
 
-  .cart-list {
-    padding: $spacing-s;
-    max-height: 420px;
-  }
+.gift-info {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 
-  .item-cards {
-    gap: $spacing-s;
-  }
+.gift-name {
+  font-size: 12px;
+  color: #606266;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+}
 
-  .cart-item-card {
-    margin-bottom: 0;
-  }
+.gift-quantity {
+  font-size: 12px;
+  color: $success-color;
+  font-weight: 500;
+}
 
-  .mobile-row {
+.cart-summary {
+  background-color: #f9f9f9;
+  padding: 16px;
+  border-radius: $border-radius;
+  margin-top: 0; /* 调整顶部间距 */
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+
+  .summary-item {
     display: flex;
     align-items: center;
-  }
-
-  .item-image {
-    width: 80px;
-    height: 80px;
-    margin-right: $spacing-m;
-    flex-shrink: 0;
-  }
-
-  .mobile-info {
-    flex: 1;
-  }
-
-  .mobile-actions {
-    flex-wrap: wrap;
     justify-content: space-between;
-    gap: $spacing-m;
-    margin-top: $spacing-m;
-    padding-left: 80px + $spacing-m; // 與圖片對齊
-  }
+    margin-bottom: 6px;
 
-  .quantity-control {
-    flex: 1;
-  }
+    &.final {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #ebeef5;
+      font-size: $font-size-base;
+    }
 
-  .remove-btn {
-    margin-top: 0;
-    text-align: right;
-  }
+    .summary-value {
+      font-weight: 600;
 
-  .order-summary-card,
-  .order-notes-card {
-    padding: $spacing-m;
-  }
+      &.gift-value {
+        color: $success-color;
+      }
 
-  .summary-title,
-  .notes-title {
-    font-size: $font-size-base;
-    padding-bottom: $spacing-s;
-    margin-bottom: $spacing-m;
-  }
+      &.discount-value {
+        color: $danger-color;
+      }
 
-  .summary-row {
-    font-size: $font-size-s;
+      &.final-value {
+        color: $danger-color;
+        font-size: $font-size-lg;
+      }
+    }
   }
+}
 
-  .total-row .total-price {
-    font-size: $font-size-lg;
+/* 響應式調整 */
+@media (max-width: 768px) {
+  .cart-list {
+    max-height: 350px; /* 移動端略微縮小高度 */
   }
 }
 
 @media (max-width: 480px) {
-  .mobile-row {
-    display: flex;
-    flex-direction: row; // 保持水平佈局
-    align-items: center;
+  .cart-list {
+    max-height: 300px; /* 小螢幕更小的高度 */
   }
 
   .item-image {
-    width: 70px;
-    height: 70px;
-    margin-right: $spacing-m;
-    margin-bottom: 0;
+    width: 60px;
+    height: 60px;
+    min-width: 60px;
   }
 
-  .mobile-info {
-    margin-left: 0;
-    flex: 1;
+  .item-name {
+    font-size: $font-size-s;
   }
 
-  .mobile-actions {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: $spacing-s;
-    padding-left: 70px + $spacing-m; // 與圖片對齊
+  .item-price {
+    font-size: $font-size-s;
   }
 
-  .quantity-control,
-  .remove-btn {
-    width: auto;
-    margin-top: 0;
+  .gift-name {
+    max-width: 100px;
   }
+}
 
-  .price-total {
-    display: none; /* 在極小屏幕上也隱藏小計 */
-  }
-
-  .remove-btn {
-    margin-top: $spacing-m;
-  }
-
+/* 提供更多空間給行動裝置 */
+@media (max-width: 360px) {
   .cart-list {
-    max-height: 380px;
+    max-height: 250px; /* 最小螢幕高度更小 */
+  }
+
+  .item-image {
+    width: 50px;
+    height: 50px;
+    min-width: 50px;
+  }
+
+  .item-actions-row {
+    flex-wrap: wrap;
+  }
+
+  .item-quantity {
+    margin-bottom: 8px;
+  }
+
+  .gift-name {
+    max-width: 80px;
   }
 }
 </style>

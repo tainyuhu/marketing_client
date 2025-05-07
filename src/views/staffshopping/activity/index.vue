@@ -68,7 +68,7 @@
           @click="goToProductDetail(product.id)"
         >
           <div class="product-image">
-            <img :src="product.imageUrl" :alt="product.name" loading="lazy" />
+            <img :src="product.image_url" :alt="product.name" loading="lazy" />
           </div>
           <div class="product-info">
             <h3 class="product-name">{{ product.name }}</h3>
@@ -83,14 +83,36 @@
                 NT${{ formatPrice(product.originalPrice) }}
               </span>
             </div>
+
+            <!-- 數量選擇器 - 點擊時阻止冒泡以避免導航到產品詳情頁 -->
+            <div class="quantity-control" @click.stop>
+              <div class="quantity-label">數量：</div>
+              <el-input-number
+                v-model="productQuantities[product.id]"
+                :min="0"
+                :max="product.stock"
+                :disabled="product.stock <= 0"
+                size="mini"
+                @change="
+                  val => validateQuantity(product.id, val, product.stock)
+                "
+              ></el-input-number>
+            </div>
+
             <el-button
               type="primary"
               size="small"
               class="order-btn"
               @click.stop="addToCart(product)"
-              :disabled="product.stock <= 0"
+              :disabled="
+                product.stock <= 0 || productQuantities[product.id] <= 0
+              "
             >
-              {{ product.stock > 0 ? "加入購物車" : "已售罄" }}
+              <span v-if="product.stock <= 0">已售罄</span>
+              <span v-else-if="productQuantities[product.id] <= 0"
+                >請選擇數量</span
+              >
+              <span v-else>加入購物車</span>
             </el-button>
           </div>
         </div>
@@ -130,7 +152,7 @@
       <el-badge :value="cartCount" class="cart-badge">
         <i class="el-icon-shopping-cart-2"></i>
       </el-badge>
-      <span>去結算</span>
+      <span>購物車</span>
     </div>
 
     <!-- 購物車抽屜組件 -->
@@ -165,7 +187,8 @@ export default {
       productPage: 1,
       productLimit: 8,
       cartCount: 0,
-      cartVisible: false
+      cartVisible: false,
+      productQuantities: {} // 用於存儲每個產品的數量
     };
   },
 
@@ -182,9 +205,11 @@ export default {
       this.error = null;
 
       try {
-        const response = await Services.getActivityDetail(this.activityId);
+        const response = await Services.getActivityDetailWithPromotion(
+          this.activityId
+        );
         this.activity = response.data;
-        this.loadProducts();
+        this.loadProducts(); // 活動資料載入完成後開始載入商品
       } catch (error) {
         this.error = error;
         console.error("Failed to fetch activity detail", error);
@@ -193,7 +218,7 @@ export default {
       }
     },
 
-    // 載入商品
+    // 載入商品 - 使用分頁API
     async loadProducts() {
       if (this.loadingProducts) return;
 
@@ -205,7 +230,27 @@ export default {
           limit: this.productLimit
         });
 
-        this.products = [...this.products, ...response.data];
+        // 確保欄位映射正確
+        const newProducts = response.data.map(p => ({
+          id: p.id || p.product, // 根據API返回格式可能需要調整
+          name: p.product_name,
+          price: parseFloat(p.price || 0),
+          originalPrice: parseFloat(p.original_price || 0),
+          image_url: p.main_image_url,
+          stock: p.stock,
+          product: p.product
+        }));
+
+        // 添加到現有產品列表
+        this.products = [...this.products, ...newProducts];
+
+        // 為新載入的產品設置默認數量為0
+        newProducts.forEach(product => {
+          if (!this.productQuantities[product.id]) {
+            this.$set(this.productQuantities, product.id, 0);
+          }
+        });
+
         this.hasMoreProducts = response.hasMore;
         this.productPage += 1;
       } catch (error) {
@@ -221,17 +266,43 @@ export default {
       this.loadProducts();
     },
 
+    // 驗證數量不超過庫存
+    validateQuantity(productId, value, maxStock) {
+      if (value > maxStock) {
+        this.$set(this.productQuantities, productId, maxStock);
+        this.$message.warning(`此商品庫存僅剩 ${maxStock} 件`);
+      }
+    },
+
     // 添加到購物車
     async addToCart(product) {
-      try {
-        await Services.addToCart({
-          productId: product.id,
-          quantity: 1,
-          activityId: this.activityId
-        });
+      const quantity = this.productQuantities[product.id];
 
-        this.$message.success("已加入購物車");
-        this.cartCount += 1;
+      // 檢查數量
+      if (!quantity || quantity <= 0) {
+        this.$message.warning("請選擇購買數量");
+        return;
+      }
+
+      // 檢查庫存
+      if (quantity > product.stock) {
+        this.$message.warning(`庫存不足，僅剩 ${product.stock} 件`);
+        this.$set(this.productQuantities, product.id, product.stock);
+        return;
+      }
+
+      try {
+        const params = {
+          productId: product.product,
+          quantity: quantity,
+          activityId: this.activityId
+        };
+        await Services.addToCart(params);
+        this.$message.success(`已加入購物車 (${quantity} 件)`);
+        this.cartCount += quantity;
+
+        // 加入購物車後重置數量為0
+        this.$set(this.productQuantities, product.id, 0);
       } catch (error) {
         this.$message.error("添加失敗，請稍後再試");
         console.error("Failed to add to cart", error);
@@ -270,7 +341,8 @@ export default {
 
     // 格式化價格
     formatPrice(price) {
-      return price.toFixed(2);
+      const value = parseFloat(price);
+      return isNaN(value) ? "0.00" : value.toFixed(2);
     },
 
     // 使用工具函數
@@ -486,6 +558,37 @@ $font-size-xl: 24px;
   text-decoration: line-through;
 }
 
+/* 數量控制區 */
+.quantity-control {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+
+  .quantity-label {
+    font-size: $font-size-s;
+    color: #606266;
+    margin-right: 8px;
+  }
+
+  ::v-deep .el-input-number {
+    width: 100%;
+    line-height: 1;
+
+    .el-input__inner {
+      padding-left: 5px;
+      padding-right: 5px;
+      text-align: center;
+    }
+
+    .el-input-number__decrease,
+    .el-input-number__increase {
+      width: 24px;
+      height: 24px;
+      line-height: 22px;
+    }
+  }
+}
+
 .order-btn {
   width: 100%;
   border-radius: 20px;
@@ -563,6 +666,20 @@ $font-size-xl: 24px;
 
   .products-title {
     padding: 0 16px;
+  }
+
+  /* 數量控制區調整 */
+  .quantity-control {
+    flex-wrap: wrap;
+
+    .quantity-label {
+      width: 100%;
+      margin-bottom: 4px;
+    }
+
+    ::v-deep .el-input-number {
+      width: 100%;
+    }
   }
 }
 

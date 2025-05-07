@@ -81,15 +81,6 @@
               NT${{ formatPrice(product.originalPrice) }}
             </span>
           </div>
-          <el-button
-            type="primary"
-            size="small"
-            class="cart-btn"
-            :disabled="product.stock <= 0"
-            @click.stop="addToCart(product)"
-          >
-            {{ product.stock > 0 ? "加入購物車" : "已售罄" }}
-          </el-button>
         </div>
       </div>
 
@@ -190,10 +181,8 @@ export default {
   methods: {
     // 處理標籤切換
     handleTabChange(tab) {
-      if (this.activeTab !== tab.name) {
-        this.activeTab = tab.name;
-        this.$emit("tab-change", tab.name);
-      }
+      this.activeTab = tab.name;
+      this.$emit("tab-change", tab.name);
     },
 
     // 處理分頁變化
@@ -207,11 +196,6 @@ export default {
     // 查看商品詳情
     viewProductDetail(productId) {
       this.$emit("product-click", productId);
-    },
-
-    // 添加到購物車
-    addToCart(product) {
-      this.$emit("add-to-cart", product);
     },
 
     // 格式化價格

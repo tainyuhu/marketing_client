@@ -285,17 +285,23 @@ export default {
         .then(async () => {
           try {
             // 使用CategoryService刪除類別
-            await WarehouseCategoryService.deleteCategory(row.id);
-
-            // 從數據中移除該項
-            const index = this.categoryData.findIndex(
-              item => item.id === row.id
+            const result = await WarehouseCategoryService.deleteCategory(
+              row.id
             );
-            if (index > -1) {
-              this.categoryData.splice(index, 1);
-            }
 
-            this.$message.success("刪除成功");
+            if (result.success) {
+              // 從數據中移除該項
+              const index = this.categoryData.findIndex(
+                item => item.id === row.id
+              );
+              if (index > -1) {
+                this.categoryData.splice(index, 1);
+              }
+
+              this.$message.success("刪除成功");
+            } else {
+              this.$message.error(result.message || "刪除類別失敗");
+            }
           } catch (error) {
             console.error("刪除類別失敗", error);
             this.$message.error("刪除類別失敗");
@@ -315,6 +321,9 @@ export default {
             const newCategory = response.data;
             this.categoryData.push(newCategory);
             this.$message.success("新增類別成功");
+            this.dialogVisible = false;
+          } else {
+            this.$message.error(response.message || "新增類別失敗");
           }
         } else {
           // 編輯類別
@@ -327,15 +336,14 @@ export default {
               item => item.id === formData.id
             );
             if (index > -1) {
-              this.categoryData[index] = {
-                ...this.categoryData[index],
-                ...formData
-              };
+              this.categoryData[index] = response.data;
             }
             this.$message.success("編輯類別成功");
+            this.dialogVisible = false;
+          } else {
+            this.$message.error(response.message || "編輯類別失敗");
           }
         }
-        this.dialogVisible = false;
       } catch (error) {
         console.error("保存類別失敗", error);
         this.$message.error("保存類別失敗");

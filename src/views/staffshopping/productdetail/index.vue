@@ -17,15 +17,14 @@
           <!-- 產品圖片區 -->
           <product-gallery
             :product="product"
-            :images="product.imageUrls"
-            :main-image="product.mainImageUrl"
+            :images="product.images || []"
+            :main-image="product.main_image_url"
           />
 
           <!-- 產品資訊區 -->
           <product-info
             :product="product"
             @add-to-cart="addToCart"
-            @buy-now="buyNow"
             @go-to-activity="goToActivity"
           />
         </div>
@@ -108,7 +107,9 @@ export default {
 
       try {
         const response = await Services.getProductDetail(this.productId);
-        this.product = response.data;
+        console.log("API Response:", response);
+        // 數據結構適配
+        this.product = response.data || response; // 根據實際API響應結構調整
       } catch (error) {
         this.error = error;
         console.error("Failed to fetch product detail", error);
@@ -119,15 +120,18 @@ export default {
 
     // 添加到購物車
     async addToCart(quantity) {
-      if (!this.product || this.product.stock <= 0) return;
+      if (!this.product || !this.checkStock()) {
+        this.$message.warning("商品庫存不足");
+        return;
+      }
 
       try {
-        await Services.addToCart({
+        const params = {
           productId: this.product.id,
           quantity: quantity,
-          activityId: this.product.activityId
-        });
-
+          activityId: this.product.activity_id
+        };
+        await Services.addToCart(params);
         this.$message.success("已加入購物車");
         this.cartCount += quantity;
       } catch (error) {
@@ -136,15 +140,12 @@ export default {
       }
     },
 
-    // 立即購買
-    buyNow(quantity) {
-      if (!this.product || this.product.stock <= 0) return;
+    // 檢查庫存
+    checkStock() {
+      if (!this.product) return false;
 
-      // 先加入購物車
-      this.addToCart(quantity).then(() => {
-        // 然後打開購物車進行結算
-        this.openCart();
-      });
+      // 直接使用API返回的庫存數據
+      return this.product.has_stock && this.product.stock > 0;
     },
 
     // 獲取購物車數量

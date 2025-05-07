@@ -25,16 +25,16 @@
     <!-- 購物車抽屜組件 -->
     <shopping-cart-drawer
       :visible.sync="cartVisible"
-      @update:count="updateCartCount"
+      @update:count="getCartCount()"
     />
   </div>
 </template>
-
 <script>
 import { AppMain } from "@/layout/components";
 import ShopNavbar from "@/layout/components/ShopNavbar.vue";
 import ShopFooter from "@/layout/components/ShopFooter.vue";
 import ShoppingCartDrawer from "@/views/staffshopping/activity/components/ShoppingCartDrawer.vue";
+import Services from "@/views/staffshopping/services/Services.js";
 
 export default {
   name: "ShopLayout",
@@ -71,26 +71,19 @@ export default {
     openShoppingCart() {
       this.cartVisible = true;
     },
-    // 更新購物車數量
-    updateCartCount(count) {
-      this.cartCount = count;
-    },
     // 獲取購物車數量
     async getCartCount() {
       try {
-        // 從您的服務調用中獲取購物車數量
-        // const response = await Services.getCartCount();
-        // this.cartCount = response.data.count;
-        // 模擬數據
-        this.cartCount = 5;
+        const response = await Services.getCartCount();
+        this.cartCount = response.data.count;
       } catch (error) {
-        console.error("獲取購物車數量失敗:", error);
+        console.error("Failed to get cart count", error);
+        this.cartCount = 0;
       }
     }
   }
 };
 </script>
-
 <style lang="scss" scoped>
 .shop-layout {
   position: relative;
@@ -99,13 +92,11 @@ export default {
   display: flex;
   flex-direction: column;
 }
-
 .main-content {
   padding-top: 60px; /* 與導航欄高度相匹配 */
   flex: 1 0 auto; /* 確保主內容區域可以伸展以填充空間 */
   min-height: calc(100vh - 60px - 60px); /* 減去底層欄的大致高度 */
 }
-
 @media (max-width: 768px) {
   .main-content {
     padding-top: 50px; /* 與手機版導航欄高度匹配 */

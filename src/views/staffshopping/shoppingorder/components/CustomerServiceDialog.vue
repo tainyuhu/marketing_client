@@ -2,115 +2,141 @@
   <el-dialog
     title="聯絡客服"
     :visible.sync="dialogVisible"
-    width="90%"
     :fullscreen="isMobile"
-    custom-class="customer-service-dialog"
+    :width="isMobile ? '100%' : '500px'"
+    :close-on-click-modal="false"
+    :modal="true"
+    custom-class="service-dialog"
     @close="handleClose"
   >
-    <div class="customer-service-content">
-      <div class="service-header">
-        <div class="service-icon">
-          <i class="el-icon-service"></i>
-        </div>
-        <h3 class="service-title">如何協助您?</h3>
-        <p class="service-subtitle">我們的客服團隊將竭誠為您服務</p>
+    <div class="customer-service-dialog">
+      <div class="dialog-header">
+        <i class="el-icon-service header-icon"></i>
+        <h2>客戶服務中心</h2>
       </div>
 
-      <div class="order-info" v-if="orderInfo">
-        <h4>訂單資訊</h4>
-        <div class="info-item">
-          <span class="label">訂單編號：</span>
-          <span class="value">{{ orderInfo.orderNumber }}</span>
-          <el-button
-            type="text"
-            size="mini"
-            class="copy-btn"
-            @click="copyToClipboard(orderInfo.orderNumber)"
-          >
-            <i class="el-icon-document-copy"></i>
-          </el-button>
+      <!-- 上班時間提示區塊 - 新增在頂部顯著位置 -->
+      <div class="business-hours-alert">
+        <i class="el-icon-time"></i>
+        <div class="hours-text">
+          <div class="hours-title">客服上班時間</div>
+          <div class="hours-detail">週一至週五 09:00-18:00</div>
         </div>
-        <div class="info-item">
-          <span class="label">訂購日期：</span>
-          <span class="value">{{ formatDate(orderInfo.orderDate) }}</span>
-        </div>
-        <div class="info-item">
-          <span class="label">訂購金額：</span>
-          <span class="value price"
-            >NT${{ orderInfo.totalAmount.toFixed(2) }}</span
-          >
+        <div
+          class="status-indicator"
+          :class="{ online: isBusinessHours, offline: !isBusinessHours }"
+        >
+          {{ isBusinessHours ? "服務中" : "非服務時間" }}
         </div>
       </div>
 
-      <div class="contact-methods">
-        <div class="method-card phone-method">
-          <div class="method-icon">
-            <i class="el-icon-phone"></i>
+      <el-collapse v-model="activeNames" accordion class="custom-collapse">
+        <el-collapse-item name="1">
+          <template slot="title">
+            <div class="collapse-title">
+              <i class="el-icon-document"></i>
+              <span>訂單資訊</span>
+            </div>
+          </template>
+          <div class="info-card order-info">
+            <div class="info-item">
+              <span class="label">訂單編號：</span>
+              <span class="value highlight">{{
+                orderInfo ? orderInfo.orderNumber : ""
+              }}</span>
+            </div>
+            <div class="info-item">
+              <span class="label">訂單日期：</span>
+              <span class="value">{{
+                formatDate(orderInfo ? orderInfo.orderDate : "")
+              }}</span>
+            </div>
+            <div class="info-item">
+              <span class="label">訂單金額：</span>
+              <span class="value"
+                >NT${{
+                  orderInfo && orderInfo.totalAmount
+                    ? orderInfo.totalAmount.toFixed(2)
+                    : "0.00"
+                }}</span
+              >
+            </div>
           </div>
-          <div class="method-info">
-            <h4>電話聯絡</h4>
-            <p>客服電話：(02) 1234-5678</p>
-            <p class="time-info">服務時間：週一至週五 9:00-18:00</p>
+        </el-collapse-item>
+
+        <el-collapse-item name="2">
+          <template slot="title">
+            <div class="collapse-title">
+              <i class="el-icon-phone-outline"></i>
+              <span>聯絡方式</span>
+            </div>
+          </template>
+          <div class="info-card contact-info">
+            <div class="contact-button phone" @click="handleCall">
+              <i class="el-icon-phone"></i>
+              <div class="contact-details">
+                <div class="contact-label">客服專線</div>
+                <div class="contact-value">0800-123-456</div>
+              </div>
+              <i class="el-icon-arrow-right"></i>
+            </div>
+
+            <div class="contact-button email" @click="handleEmail">
+              <i class="el-icon-message"></i>
+              <div class="contact-details">
+                <div class="contact-label">電子郵件</div>
+                <div class="contact-value">service@example.com</div>
+              </div>
+              <i class="el-icon-arrow-right"></i>
+            </div>
+
+            <!-- 移除原本的上班時間區塊，因為已經移到頂部 -->
           </div>
-          <div class="method-action">
-            <el-button
-              type="primary"
-              round
-              @click="callPhoneNumber('0212345678')"
+        </el-collapse-item>
+      </el-collapse>
+
+      <div class="message-form-container">
+        <h3 class="section-title">
+          <i class="el-icon-edit-outline"></i>
+          <span>線上留言</span>
+        </h3>
+        <el-form
+          ref="messageForm"
+          :model="messageForm"
+          :rules="rules"
+          label-position="top"
+          class="mobile-form"
+        >
+          <el-form-item label="問題類型" prop="type">
+            <el-select
+              v-model="messageForm.type"
+              placeholder="請選擇問題類型"
+              style="width: 100%;"
             >
-              立即撥打
-            </el-button>
-          </div>
-        </div>
-
-        <div class="method-card email-method">
-          <div class="method-icon">
-            <i class="el-icon-message"></i>
-          </div>
-          <div class="method-info">
-            <h4>電子郵件</h4>
-            <p>客服信箱：service@example.com</p>
-            <p class="time-info">一般回覆時間：1-2個工作日</p>
-          </div>
-          <div class="method-action">
-            <el-button
-              type="primary"
-              round
-              @click="sendEmail('service@example.com')"
-            >
-              寄送郵件
-            </el-button>
-          </div>
-        </div>
-
-        <div class="method-card line-method">
-          <div class="method-icon">
-            <i class="el-icon-chat-line-round"></i>
-          </div>
-          <div class="method-info">
-            <h4>LINE 客服</h4>
-            <p>LINE ID：@staffshop</p>
-            <p class="time-info">服務時間：週一至週日 9:00-21:00</p>
-          </div>
-          <div class="method-action">
-            <el-button type="success" round @click="openLineChat">
-              加入好友
-            </el-button>
-          </div>
-        </div>
-      </div>
-
-      <div class="service-note">
-        <p>
-          <i class="el-icon-info"></i>
-          聯絡客服時請提供您的訂單編號，以便我們能更快速地處理您的問題。
-        </p>
+              <el-option label="訂單問題" value="order"></el-option>
+              <el-option label="配送問題" value="delivery"></el-option>
+              <el-option label="退換貨" value="return"></el-option>
+              <el-option label="其他" value="other"></el-option>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="留言內容" prop="content">
+            <el-input
+              v-model="messageForm.content"
+              type="textarea"
+              :rows="4"
+              placeholder="請輸入您的問題或留言"
+            ></el-input>
+          </el-form-item>
+        </el-form>
       </div>
     </div>
 
-    <span slot="footer" class="dialog-footer">
-      <el-button @click="dialogVisible = false">關閉</el-button>
-    </span>
+    <div class="fixed-footer" slot="footer">
+      <el-button @click="handleClose" plain>取消</el-button>
+      <el-button type="primary" @click="handleSubmit" :loading="isSubmitting"
+        >送出留言</el-button
+      >
+    </div>
   </el-dialog>
 </template>
 
@@ -125,23 +151,48 @@ export default {
     },
     orderInfo: {
       type: Object,
-      default: null
+      default: () => ({})
     }
   },
 
   data() {
     return {
-      dialogVisible: this.visible,
-      isMobile: window.innerWidth <= 768
+      messageForm: {
+        type: "",
+        content: ""
+      },
+      rules: {
+        type: [
+          { required: true, message: "請選擇問題類型", trigger: "change" }
+        ],
+        content: [
+          { required: true, message: "請輸入留言內容", trigger: "blur" }
+        ]
+      },
+      activeNames: ["1", "2"],
+      isSubmitting: false,
+      isMobile: window.innerWidth < 768
     };
   },
 
-  watch: {
-    visible(val) {
-      this.dialogVisible = val;
+  computed: {
+    dialogVisible: {
+      get() {
+        return this.visible;
+      },
+      set(val) {
+        this.$emit("update:visible", val);
+      }
     },
-    dialogVisible(val) {
-      this.$emit("update:visible", val);
+
+    // 判斷當前是否在上班時間內
+    isBusinessHours() {
+      const now = new Date();
+      const day = now.getDay(); // 0是星期日，1-5是星期一至五，6是星期六
+      const hour = now.getHours();
+
+      // 判斷是否是週一至週五（1-5）且在9:00-18:00之間
+      return day >= 1 && day <= 5 && hour >= 9 && hour < 18;
     }
   },
 
@@ -154,12 +205,8 @@ export default {
   },
 
   methods: {
-    handleClose() {
-      this.$emit("close");
-    },
-
     checkScreenSize() {
-      this.isMobile = window.innerWidth <= 768;
+      this.isMobile = window.innerWidth < 768;
     },
 
     formatDate(dateString) {
@@ -171,331 +218,357 @@ export default {
       )}-${String(date.getDate()).padStart(2, "0")}`;
     },
 
-    copyToClipboard(text) {
-      navigator.clipboard
-        .writeText(text)
-        .then(() => {
-          this.$message({
-            message: "已複製到剪貼簿",
-            type: "success",
-            duration: 1500
-          });
-        })
-        .catch(err => {
-          this.$message.error("複製失敗");
-          console.error("複製失敗:", err);
-        });
-    },
-
-    callPhoneNumber(phoneNumber) {
-      if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-        window.location.href = `tel:${phoneNumber}`;
+    handleCall() {
+      if (this.isMobile) {
+        window.location.href = "tel:0800123456";
       } else {
-        this.copyToClipboard(phoneNumber);
-        this.$message({
-          message: "電話號碼已複製到剪貼簿",
-          type: "success"
-        });
+        this.$message.info("客服專線：0800-123-456");
       }
     },
 
-    sendEmail(email) {
-      window.location.href = `mailto:${email}?subject=訂單查詢：${
-        this.orderInfo ? this.orderInfo.orderNumber : ""
-      }`;
+    handleEmail() {
+      window.location.href = "mailto:service@example.com";
     },
 
-    openLineChat() {
-      // 在新視窗中打開LINE的添加好友頁面
-      // 這裡使用假設的LINE ID URL，實際應根據您的LINE官方帳號調整
-      window.open("https://line.me/R/ti/p/@staffshop", "_blank");
+    handleClose() {
+      if (this.$refs.messageForm) {
+        this.$refs.messageForm.resetFields();
+      }
+      this.dialogVisible = false;
+      this.$emit("close");
+    },
+
+    handleSubmit() {
+      this.$refs.messageForm.validate(valid => {
+        if (valid) {
+          this.isSubmitting = true;
+
+          // 模擬API呼叫
+          setTimeout(() => {
+            this.isSubmitting = false;
+            this.$message({
+              type: "success",
+              message: "留言已送出，我們會盡快回覆您",
+              duration: 2000
+            });
+            this.handleClose();
+          }, 800);
+        }
+      });
     }
   }
 };
 </script>
 
-<style lang="scss" scoped>
-$primary-color: #1890ff;
-$success-color: #52c41a;
-$warning-color: #faad14;
-$danger-color: #ff4d4f;
-$border-radius: 8px;
-$box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+<style lang="scss">
+// 全域樣式調整
+.service-dialog {
+  @media (max-width: 767px) {
+    margin: 0 !important;
+    border-radius: 0 !important;
 
-.customer-service-dialog {
-  &::v-deep .el-dialog__header {
-    padding: 15px 20px;
-    text-align: center;
-    border-bottom: 1px solid #f0f0f0;
-
-    .el-dialog__title {
-      font-size: 18px;
-      font-weight: 600;
+    .el-dialog__header {
+      padding: 16px !important;
+      border-bottom: 1px solid #ebeef5;
     }
-  }
 
-  &::v-deep .el-dialog__body {
-    padding: 20px;
+    .el-dialog__body {
+      padding: 0 !important;
+      overflow-y: auto;
+      max-height: calc(100vh - 108px);
+    }
+
+    .el-dialog__footer {
+      padding: 0 !important;
+    }
   }
 }
 
-.customer-service-content {
-  .service-header {
-    text-align: center;
-    margin-bottom: 24px;
+.customer-service-dialog {
+  // 整體頁面樣式
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  color: #333;
 
-    .service-icon {
-      width: 64px;
-      height: 64px;
-      background-color: #ecf5ff;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 16px;
+  // 頁面頂部標題區域
+  .dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background-color: #f7f9fc;
+    border-radius: 8px;
+    margin-bottom: 16px;
 
-      i {
-        font-size: 32px;
-        color: $primary-color;
-      }
+    .header-icon {
+      font-size: 28px;
+      color: #409eff;
+      margin-right: 12px;
     }
 
-    .service-title {
+    h2 {
+      margin: 0;
       font-size: 20px;
-      font-weight: 600;
-      margin: 0 0 8px;
+      font-weight: 500;
       color: #303133;
     }
 
-    .service-subtitle {
-      font-size: 14px;
-      color: #909399;
+    @media (max-width: 767px) {
       margin: 0;
+      border-radius: 0;
+      border-bottom: 1px solid #ebeef5;
     }
   }
 
-  .order-info {
-    background-color: #f5f7fa;
-    border-radius: $border-radius;
-    padding: 16px;
-    margin-bottom: 24px;
+  // 上班時間提示區塊 - 新增樣式
+  .business-hours-alert {
+    display: flex;
+    align-items: center;
+    margin: 0 16px 16px;
+    padding: 12px 16px;
+    background-color: #f0f9eb;
+    border-radius: 8px;
+    border-left: 4px solid #67c23a;
 
-    h4 {
-      margin: 0 0 12px;
-      font-size: 16px;
-      color: #303133;
+    i {
+      font-size: 24px;
+      color: #67c23a;
+      margin-right: 12px;
     }
 
-    .info-item {
+    .hours-text {
+      flex: 1;
+
+      .hours-title {
+        font-size: 14px;
+        font-weight: 500;
+        color: #67c23a;
+        margin-bottom: 3px;
+      }
+
+      .hours-detail {
+        font-size: 16px;
+        font-weight: 500;
+        color: #303133;
+      }
+    }
+
+    .status-indicator {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+
+      &.online {
+        background-color: #67c23a;
+        color: white;
+      }
+
+      &.offline {
+        background-color: #f56c6c;
+        color: white;
+      }
+    }
+
+    // 非上班時間的樣式
+    &.offline {
+      background-color: #fef0f0;
+      border-left-color: #f56c6c;
+
+      i {
+        color: #f56c6c;
+      }
+
+      .hours-title {
+        color: #f56c6c;
+      }
+    }
+  }
+
+  // 自定義摺疊面板
+  .custom-collapse {
+    border: none;
+
+    .el-collapse-item__header {
+      height: auto;
+      line-height: 1.5;
+      padding: 14px 16px;
+      background-color: #f5f7fa;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      border: none;
+
+      &.is-active {
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+      }
+    }
+
+    .el-collapse-item__wrap {
+      border: none;
+      background: transparent;
+    }
+
+    .el-collapse-item__content {
+      padding: 0;
+    }
+
+    .collapse-title {
       display: flex;
       align-items: center;
-      margin-bottom: 8px;
+      font-size: 16px;
+
+      i {
+        margin-right: 10px;
+        color: #409eff;
+        font-size: 18px;
+      }
+    }
+  }
+
+  // 資訊卡片樣式
+  .info-card {
+    background-color: #fff;
+    border-radius: 0 0 8px 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  }
+
+  // 訂單資訊區塊
+  .order-info {
+    .info-item {
+      display: flex;
+      margin-bottom: 12px;
 
       &:last-child {
         margin-bottom: 0;
       }
 
       .label {
-        width: 80px;
         color: #909399;
+        width: 80px;
         flex-shrink: 0;
       }
 
       .value {
+        color: #303133;
         flex: 1;
 
-        &.price {
-          color: $danger-color;
-          font-weight: 600;
+        &.highlight {
+          color: #409eff;
+          font-weight: 500;
         }
-      }
-
-      .copy-btn {
-        padding: 0;
-        margin-left: 8px;
       }
     }
   }
 
-  .contact-methods {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 16px;
-    margin-bottom: 24px;
-
-    .method-card {
-      border: 1px solid #ebeef5;
-      border-radius: $border-radius;
-      padding: 16px;
-      transition: all 0.3s;
-      display: flex;
-      flex-direction: column;
-
-      &:hover {
-        box-shadow: $box-shadow;
-        transform: translateY(-2px);
-      }
-
-      .method-icon {
-        width: 48px;
-        height: 48px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: 12px;
-
-        i {
-          font-size: 24px;
-        }
-      }
-
-      .method-info {
-        flex: 1;
-
-        h4 {
-          font-size: 16px;
-          margin: 0 0 8px;
-        }
-
-        p {
-          margin: 0 0 4px;
-          color: #606266;
-        }
-
-        .time-info {
-          font-size: 12px;
-          color: #909399;
-        }
-      }
-
-      .method-action {
-        margin-top: 16px;
-        text-align: right;
-      }
-    }
-
-    .phone-method .method-icon {
-      background-color: #ecf5ff;
-
-      i {
-        color: $primary-color;
-      }
-    }
-
-    .email-method .method-icon {
-      background-color: #f0f9eb;
-
-      i {
-        color: $success-color;
-      }
-    }
-
-    .line-method .method-icon {
-      background-color: #e8f8f4;
-
-      i {
-        color: #08c060; // LINE 綠色
-      }
-    }
-  }
-
-  .service-note {
-    background-color: #fdf6ec;
-    border-radius: $border-radius;
-    padding: 12px 16px;
-
-    p {
-      margin: 0;
+  // 聯絡方式區塊
+  .contact-info {
+    .contact-button {
       display: flex;
       align-items: center;
-      color: #e6a23c;
-      font-size: 14px;
+      padding: 12px 16px;
+      background-color: #f7f9fc;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: all 0.3s;
+
+      &:active {
+        background-color: #e6f1fc;
+      }
+
+      i:first-child {
+        font-size: 22px;
+        color: #409eff;
+        margin-right: 12px;
+      }
+
+      .contact-details {
+        flex: 1;
+      }
+
+      .contact-label {
+        font-size: 14px;
+        color: #909399;
+        margin-bottom: 2px;
+      }
+
+      .contact-value {
+        font-size: 16px;
+        color: #303133;
+        font-weight: 500;
+      }
+
+      .el-icon-arrow-right {
+        color: #c0c4cc;
+      }
+    }
+  }
+
+  // 留言表單區塊
+  .message-form-container {
+    padding: 0 16px 16px;
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      font-size: 16px;
+      margin-bottom: 16px;
+      color: #303133;
 
       i {
-        margin-right: 8px;
+        font-size: 18px;
+        color: #409eff;
+        margin-right: 10px;
       }
     }
-  }
-}
 
-@media (max-width: 768px) {
-  .customer-service-content {
-    .contact-methods {
-      grid-template-columns: 1fr;
+    .mobile-form {
+      .el-form-item__label {
+        padding-bottom: 6px;
+        line-height: 1.5;
+        font-size: 14px;
+      }
 
-      .method-card {
-        flex-direction: row;
-        align-items: center;
+      .el-form-item {
+        margin-bottom: 16px;
+      }
+
+      .el-select .el-input__inner,
+      .el-textarea__inner {
+        border-radius: 8px;
         padding: 12px;
+        font-size: 16px;
+      }
 
-        .method-icon {
-          margin-bottom: 0;
-          margin-right: 12px;
-          width: 40px;
-          height: 40px;
-
-          i {
-            font-size: 20px;
-          }
-        }
-
-        .method-info {
-          text-align: left;
-          padding-right: 12px;
-
-          h4 {
-            font-size: 15px;
-          }
-
-          p {
-            font-size: 13px;
-          }
-        }
-
-        .method-action {
-          margin-top: 0;
-          margin-left: auto;
-        }
+      .el-textarea__inner {
+        min-height: 120px;
       }
     }
   }
-}
 
-@media (max-width: 480px) {
-  .customer-service-content {
-    .order-info .info-item {
-      flex-direction: column;
-      align-items: flex-start;
+  // 固定底部按鈕區域
+  .fixed-footer {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background-color: #fff;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
 
-      .label {
-        width: 100%;
-        margin-bottom: 4px;
-      }
+    @media (max-width: 767px) {
+      .el-button {
+        height: 44px;
+        flex: 1;
+        font-size: 16px;
+        border-radius: 8px;
 
-      .copy-btn {
-        margin-left: 0;
-        margin-top: 4px;
-      }
-    }
-
-    .contact-methods .method-card {
-      flex-direction: column;
-
-      .method-icon {
-        margin-right: 0;
-        margin-bottom: 12px;
-      }
-
-      .method-info {
-        width: 100%;
-        text-align: center;
-        margin-bottom: 12px;
-      }
-
-      .method-action {
-        width: 100%;
-        text-align: center;
+        &:first-child {
+          margin-right: 12px;
+        }
       }
     }
   }

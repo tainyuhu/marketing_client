@@ -8,10 +8,6 @@
           <i class="el-icon-plus"></i>
           <span class="button-text">新增品號</span>
         </el-button>
-        <el-button type="warning" @click="handleAddCategory">
-          <i class="el-icon-plus"></i>
-          <span class="button-text">新增品號類別</span>
-        </el-button>
         <el-button type="primary" @click="handleBatchImport">
           <i class="el-icon-upload2"></i>
           <span class="button-text">批次匯入</span>
@@ -51,16 +47,26 @@
               >
                 <template #column-categorys="{ row }">
                   <el-tag size="small" effect="plain">{{
-                    row.categorys
+                    row.categorys || "-"
                   }}</el-tag>
+                </template>
+
+                <template #column-createdBy="{ row }">
+                  {{ row.createdBy || "-" }}
+                </template>
+
+                <template #column-updatedBy="{ row }">
+                  {{ row.updatedBy || "-" }}
                 </template>
 
                 <template #column-createdAt="{ row }">
                   {{ formatDateDisplay(row.createdAt) }}
                 </template>
+
                 <template #column-updatedAt="{ row }">
                   {{ formatDateDisplay(row.updatedAt) }}
                 </template>
+
                 <template #column-status="{ row }">
                   <el-tag
                     :type="row.status ? 'success' : 'info'"
@@ -70,6 +76,7 @@
                     {{ row.status ? "啟用" : "停用" }}
                   </el-tag>
                 </template>
+
                 <template #action="{ row }">
                   <el-tooltip content="編輯品號" placement="top">
                     <el-button
@@ -93,25 +100,42 @@
 
             <!-- 分類標籤 -->
             <el-tab-pane
-              v-for="categorys in productCategories"
-              :key="categorys.value"
-              :label="categorys.label"
-              :name="categorys.value"
+              v-for="category in productCategories"
+              :key="category.value"
+              :label="category.label"
+              :name="category.value.toString()"
             >
               <BaseTable
-                :data="getCategoryProducts(categorys.value)"
+                :data="getCategoryProducts(category.value)"
                 :columns="productColumns"
                 :loading="loading"
-                :filename="'products-' + categorys.value + '-export'"
+                :filename="'products-' + category.value + '-export'"
                 :show-action-column="true"
                 border
                 row-key="id"
               >
                 <template #column-categorys="{ row }">
                   <el-tag size="small" effect="plain">{{
-                    row.categorys
+                    row.categorys || "-"
                   }}</el-tag>
                 </template>
+
+                <template #column-createdBy="{ row }">
+                  {{ row.createdBy || "-" }}
+                </template>
+
+                <template #column-updatedBy="{ row }">
+                  {{ row.updatedBy || "-" }}
+                </template>
+
+                <template #column-createdAt="{ row }">
+                  {{ formatDateDisplay(row.createdAt) }}
+                </template>
+
+                <template #column-updatedAt="{ row }">
+                  {{ formatDateDisplay(row.updatedAt) }}
+                </template>
+
                 <template #column-status="{ row }">
                   <el-tag
                     :type="row.status ? 'success' : 'info'"
@@ -121,6 +145,7 @@
                     {{ row.status ? "啟用" : "停用" }}
                   </el-tag>
                 </template>
+
                 <template #action="{ row }">
                   <el-tooltip content="編輯品號" placement="top">
                     <el-button
@@ -167,7 +192,7 @@
           </div>
           <BaseTable
             ref="historyTable"
-            :data="filteredProductHistoryData"
+            :data="processedHistoryData"
             :columns="productHistoryColumns"
             :loading="loading"
             :filename="'product-history-export'"
@@ -179,20 +204,75 @@
             <template #column-datetime="{ row }">
               {{ formatDateDisplay(row.datetime) }}
             </template>
+
             <template #column-type="{ row }">
               <el-tag :type="getTypeTag(row.type)" size="small" effect="dark">
                 {{ getTypeLabel(row.type) }}
               </el-tag>
             </template>
-            <template #column-beforeValue="{ row }">
-              <span class="text-danger">{{
-                formatHistoryValue(row.beforeValue)
-              }}</span>
+
+            <template #column-changes="{ row }">
+              <div v-if="row.type === 'create'" class="change-item">
+                <div class="change-summary">
+                  建立品號: {{ row.productCode }}
+                </div>
+                <div class="change-detail" v-if="row.changes">
+                  <div
+                    v-for="(change, fieldName) in row.changes"
+                    :key="fieldName"
+                    class="change-detail"
+                  >
+                    <span class="field-name"
+                      >{{ getFieldLabel(fieldName) }}:</span
+                    >
+                    <span class="new-value">{{
+                      formatSimpleValue(change.to)
+                    }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                v-else-if="
+                  row.type === 'update' &&
+                    row.changes &&
+                    Object.keys(row.changes).length
+                "
+                class="changes-container"
+              >
+                <div
+                  v-for="(change, fieldName) in row.changes"
+                  :key="fieldName"
+                  class="change-item"
+                >
+                  <div class="field-name">{{ getFieldLabel(fieldName) }}:</div>
+                  <div class="change-values">
+                    <span class="old-value">{{
+                      formatSimpleValue(change.from) || "(空)"
+                    }}</span>
+                    <i class="el-icon-arrow-right"></i>
+                    <span class="new-value">{{
+                      formatSimpleValue(change.to) || "(空)"
+                    }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div v-else-if="row.type === 'delete'" class="change-item">
+                <div class="change-summary danger-text">
+                  刪除品號: {{ row.productCode }}
+                </div>
+              </div>
+
+              <div v-else class="no-changes">無明確變更記錄</div>
             </template>
-            <template #column-afterValue="{ row }">
-              <span class="text-success">{{
-                formatHistoryValue(row.afterValue)
-              }}</span>
+
+            <template #column-operator="{ row }">
+              <span>{{ row.operator || "-" }}</span>
+            </template>
+
+            <template #column-reason="{ row }">
+              <span>{{ row.reason || "-" }}</span>
             </template>
           </BaseTable>
         </el-tab-pane>
@@ -211,12 +291,6 @@
       :visible.sync="batchImportDialogVisible"
       @submit="handleBatchImportSubmit"
     />
-
-    <!-- 批次匯入對話框 -->
-    <AddCategoryDialog
-      :visible.sync="addCategoryDialogVisible"
-      @submit="handleAddCategorySubmit"
-    />
   </div>
 </template>
 
@@ -225,7 +299,6 @@ import BaseTable from "@/components/BaseTable/index.vue";
 import CombinedSearch from "@/components/SearchBox/CombinedSearch.vue";
 import ProductCodeDialog from "./components/ProductCodeDialog.vue";
 import BatchImportDialog from "./components/BatchImportDialog.vue";
-import AddCategoryDialog from "./components/AddCategoryDialog.vue";
 import { formatDate } from "@/utils/date";
 import MultiSkuService from "./services/MultiSkuService";
 import { productsColumns } from "@/constants/tableColumns";
@@ -237,8 +310,7 @@ export default {
     CombinedSearch,
     BaseTable,
     ProductCodeDialog,
-    BatchImportDialog,
-    AddCategoryDialog
+    BatchImportDialog
   },
 
   data() {
@@ -249,19 +321,45 @@ export default {
       loading: false,
       showBackButton: false,
       lastViewedRow: null,
+      fieldLabels: {
+        item_code: "品號",
+        name: "品名",
+        productCode: "品號",
+        productName: "品名",
+        specification: "規格",
+        unit: "單位",
+        box_size: "裝箱容量",
+        boxSize: "裝箱容量",
+        status: "狀態",
+        remark: "備註",
+        material_category: "物料類別",
+        materialCategoryId: "物料類別",
+        categorys: "物料類別"
+      },
 
       // 產品類別定義
       productCategories: [],
 
       // 表格欄位定義
-      productColumns: productsColumns.list,
+      productColumns: [
+        { prop: "productCode", label: "品號", minWidth: 120 },
+        { prop: "productName", label: "品名", minWidth: 150 },
+        { prop: "categorys", label: "物料類別", minWidth: 120 },
+        { prop: "specification", label: "規格", minWidth: 150 },
+        { prop: "unit", label: "單位", width: 80 },
+        { prop: "boxSize", label: "裝箱容量", width: 100 },
+        { prop: "status", label: "狀態", width: 80 },
+        { prop: "createdBy", label: "建立人員", width: 100 },
+        { prop: "createdAt", label: "建立時間", width: 160 },
+        { prop: "updatedBy", label: "修改人員", width: 100 },
+        { prop: "updatedAt", label: "修改時間", width: 160 }
+      ],
 
       productHistoryColumns: productsColumns.history,
 
       // 對話框顯示控制
       productDialogVisible: false,
       batchImportDialogVisible: false,
-      addCategoryDialogVisible: false,
       currentEditRow: null,
 
       // 搜索參數
@@ -296,7 +394,6 @@ export default {
       return data;
     },
 
-    // 過濾後的品號異動記錄
     filteredProductHistoryData() {
       let data = this.productHistoryData;
       const { keyword, field, dateRange } = this.historySearchParams;
@@ -310,6 +407,17 @@ export default {
       }
 
       return data;
+    },
+
+    processedHistoryData() {
+      return this.filteredProductHistoryData.map(history => {
+        return {
+          ...history,
+          productName: this.getProductNameFromHistory(history),
+          specification: this.getSpecificationFromHistory(history),
+          reason: history.remark || "系統自動記錄"
+        };
+      });
     }
   },
 
@@ -339,6 +447,7 @@ export default {
     async loadProductData() {
       try {
         this.productData = await MultiSkuService.getProductList();
+        console.log("品號資料載入完成:", this.productData);
       } catch (error) {
         console.error("加載品號資料失敗:", error);
         this.$message.error("加載品號資料失敗");
@@ -346,9 +455,22 @@ export default {
     },
 
     // 加載品號異動記錄
-    async loadProductHistoryData() {
+    async loadProductHistoryData(itemId = null) {
       try {
-        this.productHistoryData = await MultiSkuService.getProductHistoryList();
+        this.loading = true;
+
+        if (itemId) {
+          // 特定品號歷史紀錄
+          this.productHistoryData = await MultiSkuService.getProductHistoryList(
+            {},
+            itemId
+          );
+        } else {
+          // 最近異動（全部品號）
+          this.productHistoryData = await MultiSkuService.getRecentProductHistoryList(
+            7
+          );
+        }
 
         // 標準化日期格式
         this.productHistoryData = this.productHistoryData.map(item => {
@@ -385,9 +507,10 @@ export default {
     async loadProductCategories() {
       try {
         this.productCategories = await MultiSkuService.getProductCategories();
+        console.log("物料類別載入完成:", this.productCategories);
       } catch (error) {
-        console.error("加載產品類別失敗:", error);
-        this.$message.error("加載產品類別失敗");
+        console.error("加載物料類別失敗:", error);
+        this.$message.error("加載物料類別失敗");
       }
     },
 
@@ -417,9 +540,9 @@ export default {
     },
 
     // 取得特定類別的產品
-    getCategoryProducts(categorys) {
+    getCategoryProducts(categoryId) {
       return this.filteredProductData.filter(
-        product => product.categorys === categorys
+        product => product.materialCategoryId === categoryId
       );
     },
 
@@ -435,11 +558,6 @@ export default {
       this.productDialogVisible = true;
     },
 
-    // 新增品號類別
-    handleAddCategory() {
-      this.addCategoryDialogVisible = true;
-    },
-
     // 批次匯入
     handleBatchImport() {
       this.batchImportDialogVisible = true;
@@ -452,51 +570,12 @@ export default {
         const result = await MultiSkuService.saveProduct(data);
 
         if (result.success) {
-          const savedData = result.data;
-
-          // 檢查是新增還是更新
-          const index = this.productData.findIndex(
-            item => item.productCode === savedData.productCode
-          );
-
-          if (index !== -1) {
-            // 更新現有品號
-            const oldData = { ...this.productData[index] };
-            this.productData[index] = { ...savedData };
-
-            // 記錄修改到品號異動記錄
-            const newHistoryRecord = {
-              datetime: new Date().toISOString(),
-              type: "update",
-              productCode: savedData.productCode,
-              field: "all",
-              beforeValue: JSON.stringify(oldData),
-              afterValue: JSON.stringify(savedData),
-              operator: "admin", // 這裡可替換為實際登入用戶
-              remark: "修改品號資料"
-            };
-
-            this.productHistoryData.unshift(newHistoryRecord);
-          } else {
-            // 新增品號
-            this.productData.push({ ...savedData });
-
-            // 記錄新增到品號異動記錄
-            const newHistoryRecord = {
-              datetime: new Date().toISOString(),
-              type: "create",
-              productCode: savedData.productCode,
-              field: "all",
-              beforeValue: "",
-              afterValue: JSON.stringify(savedData),
-              operator: "admin", // 這裡可替換為實際登入用戶
-              remark: "新增品號"
-            };
-
-            this.productHistoryData.unshift(newHistoryRecord);
-          }
-
           this.$message.success(result.message || "保存成功");
+
+          // ✅ 重新載入品號列表
+          await this.loadProductData();
+
+          // ✅ 關閉編輯對話框
           this.productDialogVisible = false;
         } else {
           this.$message.error(result.message || "保存失敗");
@@ -532,26 +611,42 @@ export default {
       }
     },
 
-    // 處理新增產品類別提交
-    async handleAddCategorySubmit(data) {
-      try {
-        this.loading = true;
-        const result = await MultiSkuService.addProductCategory(data);
+    // 取得欄位顯示名稱
+    getFieldLabel(fieldName) {
+      return this.fieldLabels[fieldName] || fieldName;
+    },
 
-        if (result.success) {
-          this.$message.success(result.message || "新增類別成功");
-          this.addCategoryDialogVisible = false;
-          // 重新載入類別數據
-          await this.loadProductCategories();
-        } else {
-          this.$message.error(result.message || "新增類別失敗");
+    // 從歷史記錄獲取品名
+    getProductNameFromHistory(history) {
+      try {
+        if (history.afterValue) {
+          const data = JSON.parse(history.afterValue);
+          return data.productName || data.name || "";
         }
       } catch (error) {
-        console.error("新增類別失敗:", error);
-        this.$message.error("新增類別失敗");
-      } finally {
-        this.loading = false;
+        console.error("解析品名失敗:", error);
       }
+      return "";
+    },
+
+    // 從歷史記錄獲取規格
+    getSpecificationFromHistory(history) {
+      try {
+        if (history.afterValue) {
+          const data = JSON.parse(history.afterValue);
+          return data.specification || "";
+        }
+      } catch (error) {
+        console.error("解析規格失敗:", error);
+      }
+      return "";
+    },
+
+    // 格式化簡單值
+    formatSimpleValue(value) {
+      if (value === null || value === undefined) return "";
+      if (typeof value === "object") return JSON.stringify(value);
+      return String(value);
     },
 
     // 查看品號異動紀錄
@@ -571,6 +666,9 @@ export default {
           "YYYY-MM-DD"
         )} 至 ${formatDate(endDate, "YYYY-MM-DD")}`
       );
+
+      // 載入特定品號的歷史記錄
+      this.loadProductHistoryData(row.id);
 
       // 設定搜尋條件
       this.$nextTick(() => {
@@ -729,20 +827,6 @@ export default {
       });
     },
 
-    // 格式化顯示方法
-    formatHistoryValue(value) {
-      if (!value) return "-";
-      try {
-        const parsed = JSON.parse(value);
-        if (typeof parsed === "object") {
-          return "[物件資料]";
-        }
-        return value;
-      } catch {
-        return value;
-      }
-    },
-
     // 取得異動類型標籤樣式
     getTypeTag(type) {
       const tags = {
@@ -780,6 +864,59 @@ $transition: all 0.3s ease;
 $font-size-base: 18px;
 $font-size-lg: 20px;
 $font-size-xl: 24px;
+
+.changes-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.change-item {
+  padding: 4px 0;
+}
+
+.change-summary {
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.change-detail {
+  margin-left: 12px;
+  margin-bottom: 4px;
+}
+
+.field-name {
+  font-weight: bold;
+  color: #606266;
+  margin-right: 8px;
+}
+
+.change-values {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+}
+
+.old-value {
+  color: #f56c6c;
+  text-decoration: line-through;
+  font-size: 0.9em;
+}
+
+.new-value {
+  color: #67c23a;
+  font-weight: bold;
+}
+
+.no-changes {
+  color: #909399;
+  font-style: italic;
+}
+
+.danger-text {
+  color: #f56c6c;
+}
 
 .multi-sku {
   padding: 24px;

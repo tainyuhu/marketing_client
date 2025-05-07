@@ -1,147 +1,36 @@
-import request from "@/utils/request";
-// API 端點路徑
-// const API_PREFIX = "/api/wms/product/category";
+import { materialCategoryApi } from "@/api/shop";
 
 class WarehouseCategoryService {
   constructor() {
-    // 是否使用 mock 資料
-    this.useMock = true;
+    // 不再使用 mock 資料
+    this.useMock = false;
+  }
 
-    // Mock 資料
-    this.mockCategories = [
-      {
-        id: 1,
-        name: "原物料",
-        description: "生產所需的各類原材料",
-        productCount: 24,
-        createTime: "2023-05-10 09:23:45",
-        updateTime: "2023-08-15 14:36:22"
-      },
-      {
-        id: 2,
-        name: "半成品",
-        description: "需要進一步加工的產品",
-        productCount: 18,
-        createTime: "2023-05-11 10:15:32",
-        updateTime: "2023-09-01 16:42:18"
-      },
-      {
-        id: 3,
-        name: "成品",
-        description: "可直接出貨的完成品",
-        productCount: 36,
-        createTime: "2023-05-12 11:05:27",
-        updateTime: "2023-09-10 13:21:45"
-      },
-      {
-        id: 4,
-        name: "包裝材料",
-        description: "各類包裝紙盒、膠帶等",
-        productCount: 15,
-        createTime: "2023-06-05 14:23:41",
-        updateTime: "2023-08-20 09:54:12"
-      },
-      {
-        id: 5,
-        name: "耗材",
-        description: "生產過程中使用的消耗品",
-        productCount: 29,
-        createTime: "2023-06-10 08:36:19",
-        updateTime: "2023-09-05 11:32:47"
-      }
-    ];
-
-    // 只保留 productCode、productName 和 specification 三個欄位
-    this.mockProducts = {
-      1: [
-        {
-          productCode: "RAW-AL-001",
-          productName: "鋁合金板材",
-          specification: "2mx1m"
-        },
-        {
-          productCode: "RAW-SS-002",
-          productName: "不鏽鋼管",
-          specification: "直徑20mm"
-        },
-        {
-          productCode: "RAW-CU-003",
-          productName: "銅線",
-          specification: "1.5mm²"
-        }
-      ],
-      2: [
-        {
-          productCode: "SEMI-PCB-001",
-          productName: "電路板組件",
-          specification: "A型"
-        },
-        {
-          productCode: "SEMI-CASE-002",
-          productName: "機殼底座",
-          specification: "標準型"
-        }
-      ],
-      3: [
-        {
-          productCode: "FIN-TEMP-001",
-          productName: "智能溫控器",
-          specification: "家用型"
-        },
-        {
-          productCode: "FIN-AIR-002",
-          productName: "空氣淨化器",
-          specification: "小型"
-        },
-        {
-          productCode: "FIN-LOCK-003",
-          productName: "智能門鎖",
-          specification: "指紋識別"
-        }
-      ],
-      4: [
-        {
-          productCode: "PKG-BOX-001",
-          productName: "產品外盒",
-          specification: "小號"
-        },
-        {
-          productCode: "PKG-BUB-002",
-          productName: "氣泡包裝",
-          specification: "標準型"
-        }
-      ],
-      5: [
-        {
-          productCode: "CONS-CLN-001",
-          productName: "清潔劑",
-          specification: "1L裝"
-        },
-        {
-          productCode: "CONS-GLV-002",
-          productName: "手套",
-          specification: "L號"
-        },
-        {
-          productCode: "CONS-ESD-003",
-          productName: "防靜電腕帶",
-          specification: "可調節"
-        }
-      ]
+  /**
+   * 轉換類別數據格式（從後端到前端）
+   * @private
+   * @param {Object} item 後端返回的類別項目
+   * @returns {Object} 轉換後的類別項目
+   */
+  _convertCategoryFormat(item) {
+    return {
+      id: item.id,
+      name: item.name,
+      description: item.description || "",
+      productCount: item.item_count || 0,
+      createTime: item.create_time,
+      updateTime: item.update_time
     };
   }
 
-  // 模擬網路延遲
-  async mockNetworkDelay(ms = 500) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  // 獲取當前時間格式化字符串
-  getFormattedNow() {
-    return new Date()
-      .toISOString()
-      .replace("T", " ")
-      .substring(0, 19);
+  /**
+   * 檢查 API 響應是否成功
+   * @private
+   * @param {Object} response API 響應
+   * @returns {boolean} 是否成功
+   */
+  _isSuccessResponse(response) {
+    return response && (response.code === 200 || response.code === 201);
   }
 
   /**
@@ -149,17 +38,15 @@ class WarehouseCategoryService {
    * @returns {Promise<Array>} 類別列表
    */
   async fetchAllCategories() {
-    if (this.useMock) {
-      await this.mockNetworkDelay();
-      return [...this.mockCategories];
-    }
-
     try {
-      const response = await request({
-        url: `${API_PREFIX}/list`,
-        method: "get"
-      });
-      return response.data || [];
+      const response = await materialCategoryApi.getMaterialCategories();
+
+      // 獲取列表數據
+      const categories =
+        response.data && response.data.results ? response.data.results : [];
+
+      // 將後端數據格式轉換為前端需要的格式
+      return categories.map(item => this._convertCategoryFormat(item));
     } catch (error) {
       console.error("獲取所有類別失敗", error);
       throw error;
@@ -172,23 +59,17 @@ class WarehouseCategoryService {
    * @returns {Promise<Array>} 搜尋結果
    */
   async searchCategories(keyword) {
-    if (this.useMock) {
-      await this.mockNetworkDelay();
-      return this.mockCategories.filter(
-        item =>
-          item.name.toLowerCase().includes(keyword.toLowerCase()) ||
-          (item.description &&
-            item.description.toLowerCase().includes(keyword.toLowerCase()))
-      );
-    }
-
     try {
-      const response = await request({
-        url: `${API_PREFIX}/search`,
-        method: "get",
-        params: { keyword }
+      const response = await materialCategoryApi.getMaterialCategories({
+        search: keyword
       });
-      return response.data || [];
+
+      // 獲取列表數據
+      const categories =
+        response.data && response.data.results ? response.data.results : [];
+
+      // 將後端數據格式轉換為前端需要的格式
+      return categories.map(item => this._convertCategoryFormat(item));
     } catch (error) {
       console.error("搜尋類別失敗", error);
       throw error;
@@ -201,38 +82,22 @@ class WarehouseCategoryService {
    * @returns {Promise<Object>} 新增結果
    */
   async addCategory(data) {
-    if (this.useMock) {
-      await this.mockNetworkDelay();
+    try {
+      const response = await materialCategoryApi.createMaterialCategory(data);
 
-      // 生成新 ID
-      const newId = Math.max(...this.mockCategories.map(c => c.id), 0) + 1;
-      const now = this.getFormattedNow();
+      // 檢查 API 響應的 code 是否為成功（200或201）
+      const isSuccess = this._isSuccessResponse(response);
 
-      const newCategory = {
-        id: newId,
-        name: data.name,
-        description: data.description || "",
-        productCount: 0,
-        createTime: now,
-        updateTime: now
-      };
-
-      this.mockCategories.push(newCategory);
+      // 轉換後端返回的數據
+      const convertedData = isSuccess
+        ? this._convertCategoryFormat(response.data)
+        : null;
 
       return {
-        success: true,
-        data: newCategory,
-        message: "新增成功"
+        success: isSuccess,
+        data: convertedData,
+        message: isSuccess ? "新增成功" : response.msg || "新增失敗"
       };
-    }
-
-    try {
-      const response = await request({
-        url: `${API_PREFIX}/add`,
-        method: "post",
-        data
-      });
-      return response;
     } catch (error) {
       console.error("新增類別失敗", error);
       throw error;
@@ -245,40 +110,25 @@ class WarehouseCategoryService {
    * @returns {Promise<Object>} 更新結果
    */
   async updateCategory(data) {
-    if (this.useMock) {
-      await this.mockNetworkDelay();
+    try {
+      const response = await materialCategoryApi.updateMaterialCategory(
+        data.id,
+        data
+      );
 
-      const index = this.mockCategories.findIndex(c => c.id === data.id);
-      if (index !== -1) {
-        const now = this.getFormattedNow();
+      // 檢查 API 響應的 code 是否為成功（200或201）
+      const isSuccess = this._isSuccessResponse(response);
 
-        this.mockCategories[index] = {
-          ...this.mockCategories[index],
-          name: data.name,
-          description: data.description || "",
-          updateTime: now
-        };
-
-        return {
-          success: true,
-          data: this.mockCategories[index],
-          message: "更新成功"
-        };
-      }
+      // 轉換後端返回的數據
+      const convertedData = isSuccess
+        ? this._convertCategoryFormat(response.data)
+        : null;
 
       return {
-        success: false,
-        message: "找不到指定類別"
+        success: isSuccess,
+        data: convertedData,
+        message: isSuccess ? "更新成功" : response.msg || "更新失敗"
       };
-    }
-
-    try {
-      const response = await request({
-        url: `${API_PREFIX}/update`,
-        method: "put",
-        data
-      });
-      return response;
     } catch (error) {
       console.error("更新類別失敗", error);
       throw error;
@@ -291,30 +141,17 @@ class WarehouseCategoryService {
    * @returns {Promise<Object>} 刪除結果
    */
   async deleteCategory(id) {
-    if (this.useMock) {
-      await this.mockNetworkDelay();
+    try {
+      const response = await materialCategoryApi.deleteMaterialCategory(id);
 
-      const index = this.mockCategories.findIndex(c => c.id === id);
-      if (index !== -1) {
-        this.mockCategories.splice(index, 1);
-        return {
-          success: true,
-          message: "刪除成功"
-        };
-      }
+      // 檢查 API 響應的 code 是否為成功（200或201或204）
+      const isSuccess =
+        response.code === 200 || response.code === 201 || response.code === 204;
 
       return {
-        success: false,
-        message: "找不到指定類別"
+        success: isSuccess,
+        message: isSuccess ? "刪除成功" : response.msg || "刪除失敗"
       };
-    }
-
-    try {
-      const response = await request({
-        url: `${API_PREFIX}/delete/${id}`,
-        method: "delete"
-      });
-      return response;
     } catch (error) {
       console.error("刪除類別失敗", error);
       throw error;
@@ -327,19 +164,83 @@ class WarehouseCategoryService {
    * @returns {Promise<Array>} 產品列表
    */
   async fetchProductsByCategory(categoryId) {
-    if (this.useMock) {
-      await this.mockNetworkDelay();
-      return this.mockProducts[categoryId] || [];
-    }
-
     try {
-      const response = await request({
-        url: `${API_PREFIX}/${categoryId}/products`,
-        method: "get"
-      });
-      return response.data || [];
+      const response = await materialCategoryApi.getMaterialCategoryItems(
+        categoryId
+      );
+
+      // 獲取列表數據
+      const products =
+        response.data && response.data.results ? response.data.results : [];
+
+      // 格式化回傳數據，確保有 productCode、productName 和 specification 欄位
+      return products.map(item => ({
+        productCode: item.code || item.item_code || "",
+        productName: item.name || item.item_name || "",
+        specification: item.specification || ""
+      }));
     } catch (error) {
       console.error("獲取類別產品失敗", error);
+      throw error;
+    }
+  }
+
+  /**
+   * 獲取樹狀結構的類別
+   * @returns {Promise<Array>} 樹狀結構的類別
+   */
+  async fetchCategoryTree() {
+    try {
+      const response = await materialCategoryApi.getMaterialCategoryTree();
+
+      // 獲取樹狀數據
+      const treeData = response.data || [];
+
+      // 遞歸轉換樹狀結構
+      const convertTree = nodes => {
+        return nodes.map(node => ({
+          id: node.id,
+          name: node.name,
+          description: node.description || "",
+          productCount: node.item_count || 0,
+          createTime: node.create_time,
+          updateTime: node.update_time,
+          children: node.children ? convertTree(node.children) : []
+        }));
+      };
+
+      return convertTree(treeData);
+    } catch (error) {
+      console.error("獲取類別樹失敗", error);
+      throw error;
+    }
+  }
+
+  /**
+   * 獲取特定類別
+   * @param {number|string} id 類別ID
+   * @returns {Promise<Object>} 類別詳情
+   */
+  async fetchCategoryDetail(id) {
+    try {
+      const response = await materialCategoryApi.getMaterialCategory(id);
+      return this._convertCategoryFormat(response.data);
+    } catch (error) {
+      console.error("獲取類別詳情失敗", error);
+      throw error;
+    }
+  }
+
+  /**
+   * 獲取物料類別分布統計
+   * @returns {Promise<Object>} 統計數據
+   */
+  async fetchCategoryDistribution() {
+    try {
+      const response = await materialCategoryApi.getMaterialCategoryDistribution();
+      return response.data || {};
+    } catch (error) {
+      console.error("獲取類別分布統計失敗", error);
       throw error;
     }
   }

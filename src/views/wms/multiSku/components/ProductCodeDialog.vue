@@ -11,8 +11,12 @@
     <div class="dialog-content">
       <el-form ref="form" :model="formData" :rules="rules" label-width="100px">
         <!-- 類別 -->
-        <el-form-item label="類別" prop="category">
-          <el-select v-model="formData.category" placeholder="請選擇類別">
+        <el-form-item label="類別" prop="categorys">
+          <el-select
+            v-model="formData.categorys"
+            placeholder="請選擇物料類別"
+            :loading="categoryLoading"
+          >
             <el-option
               v-for="item in categoryOptions"
               :key="item.value"
@@ -98,6 +102,7 @@
 
 <script>
 import LabelInput from "@/components/BaseForm/LabelInput.vue";
+import MultiSkuService from "../services/MultiSkuService";
 
 export default {
   name: "ProductCodeDialog",
@@ -120,29 +125,25 @@ export default {
   data() {
     return {
       loading: false,
+      categoryLoading: false, // 類別載入狀態
       formData: {
-        category: "",
+        categorys: "", // 改為 categorys
         productCode: "",
         productName: "",
         specification: "",
         unit: "",
         boxSize: "",
-        status: "",
+        status: true,
         remark: ""
       },
-      categoryOptions: [
-        { value: "smartphone", label: "智能手機" },
-        { value: "tablet", label: "平板電腦" },
-        { value: "laptop", label: "筆記型電腦" },
-        { value: "wearable", label: "智能穿戴" }
-      ],
+      categoryOptions: [], // 將從 API 獲取
       statusOptions: [
         { value: true, label: "啟用" },
         { value: false, label: "停用" }
       ],
       rules: {
-        category: [
-          { required: true, message: "請選擇類別", trigger: "change" }
+        categorys: [
+          { required: true, message: "請選擇物料類別", trigger: "change" }
         ],
         productCode: [
           { required: true, message: "請輸入品號", trigger: "blur" }
@@ -155,8 +156,7 @@ export default {
         ],
         unit: [{ required: true, message: "請輸入單位", trigger: "blur" }],
         boxSize: [
-          { required: true, message: "請輸入裝箱容量", trigger: "blur" },
-          { type: "number", message: "裝箱容量必須為數字", trigger: "blur" }
+          { required: true, message: "請輸入裝箱容量", trigger: "blur" }
         ],
         status: [{ required: true, message: "請選擇狀態", trigger: "change" }]
       }
@@ -180,18 +180,42 @@ export default {
   watch: {
     visible(val) {
       if (val) {
+        this.loadCategories(); // 當對話框打開時載入類別
         this.initFormData();
       }
     }
   },
 
+  created() {
+    this.loadCategories(); // 組件創建時載入類別
+  },
+
   methods: {
+    // 載入物料類別
+    async loadCategories() {
+      try {
+        this.categoryLoading = true;
+        const categories = await MultiSkuService.getProductCategories();
+        this.categoryOptions = categories.map(cat => ({
+          value: cat.id, // 使用 id 作為值
+          label: cat.label // 使用 name 作為標籤
+        }));
+      } catch (error) {
+        console.error("獲取物料類別失敗:", error);
+        this.$message.error("獲取物料類別失敗");
+      } finally {
+        this.categoryLoading = false;
+      }
+    },
+
     initFormData() {
-      // 確保狀態值為布林值
+      // 確保正確處理 categorys
       const formattedData = {
         ...this.data,
-        status: Boolean(this.data.status),
-        boxSize: Number(this.data.boxSize) || ""
+        status:
+          this.data.status === undefined ? true : Boolean(this.data.status),
+        boxSize: Number(this.data.boxSize) || "",
+        categorys: this.data.categorys || "" // 確保有 categorys
       };
 
       this.formData = {
