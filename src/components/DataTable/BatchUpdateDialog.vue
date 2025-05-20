@@ -30,13 +30,13 @@
               <template #content>
                 <div class="status-tooltip">
                   <div class="status-item">
-                    <el-tag type="warning">未處理（橙色）</el-tag>
+                    <el-tag type="warning">未處理</el-tag>
                   </div>
                   <div class="status-item">
-                    <el-tag type="success">已處理（綠色）</el-tag>
+                    <el-tag type="success">已處理</el-tag>
                   </div>
                   <div class="status-item">
-                    <el-tag type="danger">已取消（紅色）</el-tag>
+                    <el-tag type="danger">處理取消</el-tag>
                   </div>
                 </div>
               </template>
@@ -74,7 +74,7 @@
             </div>
           </div>
 
-          <!-- 單號預覽區域 - 增強版 -->
+          <!-- 訂單預覽區域 - 增強版 -->
           <div
             class="order-numbers-container"
             v-if="activeRows.length > 0 && !batchView"
@@ -99,22 +99,22 @@
                       <div slot="content" class="order-detail-tooltip">
                         <div class="tooltip-header">訂單詳細資料</div>
                         <div class="tooltip-item">
-                          <span class="label">單號:</span>
+                          <span class="label">訂單號:</span>
                           <span class="value">{{ getItemTitle(row) }}</span>
                         </div>
-                        <div class="tooltip-item" v-if="row.customerName">
-                          <span class="label">客戶:</span>
-                          <span class="value">{{ row.customerName }}</span>
+                        <div class="tooltip-item" v-if="row.receiver_name">
+                          <span class="label">收件人:</span>
+                          <span class="value">{{ row.receiver_name }}</span>
                         </div>
-                        <div class="tooltip-item" v-if="row.orderDate">
-                          <span class="label">日期:</span>
+                        <div class="tooltip-item" v-if="row.create_time">
+                          <span class="label">下單日期:</span>
                           <span class="value">{{
-                            formatDate(row.shipmentDate)
+                            formatDate(row.create_time)
                           }}</span>
                         </div>
-                        <div class="tooltip-item" v-if="row.totalAmount">
-                          <span class="label">地址:</span>
-                          <span class="value">{{ row.shippingAddress }}</span>
+                        <div class="tooltip-item" v-if="row.receiver_address">
+                          <span class="label">收件地址:</span>
+                          <span class="value">{{ row.receiver_address }}</span>
                         </div>
                       </div>
                       <i class="el-icon-warning-outline detail-icon"></i>
@@ -218,7 +218,7 @@
           </div>
           <div class="buttons">
             <el-button @click="toggleView" type="text">
-              {{ batchView ? "切換到完整單號預覽" : "切換到批號數量預覽" }}
+              {{ batchView ? "切換到完整訂單預覽" : "切換到批號數量預覽" }}
             </el-button>
             <div class="action-buttons">
               <el-button
@@ -248,7 +248,7 @@
 
 <script>
 import { formatDate } from "@/utils/date";
-import { formatCurrency } from "@/utils/dataTable";
+import SalesServices from "@/views/wms/sales/services/SalesServices";
 
 export default {
   name: "BatchUpdateDialog",
@@ -264,39 +264,24 @@ export default {
       type: Array,
       default: () => []
     },
-    // 狀態選項
+    // 狀態選項 - 符合 SalesManagement 的需求
     statusOptions: {
       type: Array,
       default: () => [
-        {
-          value: "pending",
-          label: "未處理",
-          type: "warning",
-          icon: "el-icon-time"
-        },
-        {
-          value: "completed",
-          label: "已處理",
-          type: "success",
-          icon: "el-icon-circle-check"
-        },
-        {
-          value: "cancelled",
-          label: "已取消",
-          type: "danger",
-          icon: "el-icon-circle-close"
-        }
+        { label: "未處理", value: "unprocessed", type: "warning" },
+        { label: "已處理", value: "processed", type: "success" },
+        { label: "處理取消", value: "cancelled", type: "danger" }
       ]
     },
-    // 獲取項目標題的方法
+    // 獲取項目標題的字段名稱
     titleField: {
       type: String,
-      default: "orderNumber"
+      default: "order_number"
     },
     // 狀態字段名稱
     statusField: {
       type: String,
-      default: "status"
+      default: "fulfillment_status"
     },
     // 行唯一標識符
     rowKey: {
@@ -369,28 +354,28 @@ export default {
         return false;
       }
 
-      // 情況1：已取消 -> 未處理，必須填寫備註
+      // 情況1：處理取消 -> 未處理，必須填寫備註
       // 情況2：已處理 -> 未處理，必須填寫備註
       if (
         (this.currentStatus === "cancelled" ||
-          this.currentStatus === "completed") &&
-        this.form.status === "pending"
+          this.currentStatus === "processed") &&
+        this.form.status === "unprocessed"
       ) {
         return true;
       }
 
-      // 情況3：已處理 -> 已取消，必須填寫備註
+      // 情況3：已處理 -> 處理取消，必須填寫備註
       if (
-        this.currentStatus === "completed" &&
+        this.currentStatus === "processed" &&
         this.form.status === "cancelled"
       ) {
         return true;
       }
 
-      // 情況4：已取消 -> 已處理，必須填寫備註
+      // 情況4：處理取消 -> 已處理，必須填寫備註
       if (
         this.currentStatus === "cancelled" &&
-        this.form.status === "completed"
+        this.form.status === "processed"
       ) {
         return true;
       }
@@ -415,7 +400,7 @@ export default {
       }, 0);
     },
 
-    // 處理批次與數量數據
+    // 處理批次與數量數據 - 適配 SalesManagement 的 details 結構
     batchQuantityData() {
       if (!this.activeRows.length) return [];
 
@@ -423,13 +408,13 @@ export default {
       const batchMap = new Map();
 
       this.activeRows.forEach(row => {
-        // 處理主銷貨單行
+        // 處理主訂單行
         if (row.details && row.details.length) {
           row.details.forEach(detail => {
             this.processBatchItem(detail, batchMap);
           });
         } else {
-          // 直接處理明細行
+          // 直接處理明細行（在某些情況下可能需要）
           this.processBatchItem(row, batchMap);
         }
       });
@@ -468,8 +453,17 @@ export default {
   },
 
   methods: {
-    formatCurrency,
     formatDate,
+
+    // 格式化貨幣 - 符合 SalesManagement 的需求
+    formatCurrency(value) {
+      if (!value) return "NT$ 0";
+      return `NT$ ${parseFloat(value).toLocaleString("en-US", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+      })}`;
+    },
+
     // 初始化對話框
     initializeDialog() {
       this.activeRows = [...this.selectedRows];
@@ -511,24 +505,24 @@ export default {
     // 還原所有移除的項目
     handleRestoreAll() {
       if (this.inactiveRows.length > 0) {
+        const restoredCount = this.inactiveRows.length;
         // 將所有已移除項目還原到活動行
         this.activeRows = [...this.activeRows, ...this.inactiveRows];
         this.inactiveRows = [];
 
         this.$emit("display-message", {
           type: "success",
-          message: `已還原 ${this.removedCount} 個移除的項目`
+          message: `已還原 ${restoredCount} 個移除的項目`
         });
       }
     },
 
-    // 處理批次信息條目
+    // 處理批次信息條目 - 適配 SalesManagement 的數據結構
     processBatchItem(item, batchMap) {
-      const batchNumber = item.batchNumber || "未指定批號";
+      const batchNumber = item.batch_number || "未指定批號";
       const quantity = item.quantity || 0;
-      const productCode = item.productCode || "";
-      const productName = item.productName || "";
-      const specification = item.specification || "";
+      const productCode = item.item_code || "";
+      const productName = item.product_name || "";
 
       if (batchMap.has(batchNumber)) {
         // 合併相同批號的數量
@@ -540,8 +534,7 @@ export default {
           batchNumber,
           quantity,
           productCode,
-          productName,
-          specification
+          productName
         });
       }
     },
@@ -569,10 +562,14 @@ export default {
       return title || `ID:${row.id || "未知"}`;
     },
 
-    // 獲取狀態圖標
+    // 獲取狀態圖標 - 適配 SalesManagement 的狀態
     getStatusIcon(value) {
-      const option = this.statusOptions.find(opt => opt.value === value);
-      return option ? option.icon : "el-icon-question";
+      const iconMap = {
+        unprocessed: "el-icon-time",
+        processed: "el-icon-circle-check",
+        cancelled: "el-icon-circle-close"
+      };
+      return iconMap[value] || "el-icon-question";
     },
 
     // 獲取狀態標籤類型
@@ -588,7 +585,7 @@ export default {
     },
 
     // 處理提交
-    handleSubmit() {
+    async handleSubmit() {
       // 檢查是否有選中項目
       if (this.activeRows.length === 0) {
         this.$emit("display-message", {
@@ -607,7 +604,7 @@ export default {
         return;
       }
 
-      this.$refs.updateForm.validate(valid => {
+      this.$refs.updateForm.validate(async valid => {
         if (!valid) {
           return false;
         }
@@ -623,40 +620,72 @@ export default {
 
         this.submitLoading = true;
 
-        // 處理更新數據
-        const processedRows = this.activeRows.map(row => {
-          // 創建處理後的行數據，包含更新信息
-          return {
-            ...row,
-            originalStatus: row[this.statusField], // 保存原始狀態
-            [this.statusField]: this.form.status, // 更新後的狀態
-            statusUpdateTime: new Date(),
-            statusUpdateComment: this.form.comment
-          };
-        });
-
-        // 模擬API調用延遲
-        setTimeout(() => {
-          // 更新完成結果
-          const updateResult = {
+        try {
+          // 構建請求參數
+          const payload = {
+            order_ids: this.activeRows.map(row => row.id),
             status: this.form.status,
-            comment: this.form.comment,
-            rows: processedRows,
-            batchQuantityData: this.batchQuantityData,
-            removedRows: this.inactiveRows
+            comment: this.form.comment
           };
 
-          // 發出更新事件
-          this.$emit("update", updateResult);
+          // 調用 API 服務進行批量更新
+          const result = await SalesServices.batchUpdateFulfillmentStatus(
+            payload
+          );
 
-          this.submitLoading = false;
-          this.dialogVisible = false;
+          if (result.success) {
+            // 更新本地數據狀態
+            const processedRows = this.activeRows.map(row => {
+              return {
+                ...row,
+                originalStatus: row[this.statusField], // 保存原始狀態
+                [this.statusField]: this.form.status, // 更新後的狀態
+                statusUpdateTime: new Date(),
+                statusUpdateComment: this.form.comment
+              };
+            });
 
-          // 如果選擇了匯出，觸發匯出功能
-          if (this.form.exportAfterUpdate) {
-            this.triggerExport(processedRows);
+            // 更新完成結果
+            const updateResult = {
+              status: this.form.status,
+              comment: this.form.comment,
+              rows: processedRows,
+              batchQuantityData: this.batchQuantityData,
+              removedRows: this.inactiveRows
+            };
+
+            // 發出更新事件
+            this.$emit("update", updateResult);
+
+            // 顯示成功訊息
+            this.$emit("display-message", {
+              type: "success",
+              message: result.message || "批量更新狀態成功"
+            });
+
+            // 如果選擇了匯出，觸發匯出功能
+            if (this.form.exportAfterUpdate) {
+              this.triggerExport(processedRows);
+            }
+
+            this.dialogVisible = false;
+          } else {
+            // 顯示錯誤訊息
+            this.$emit("display-message", {
+              type: "error",
+              message: result.message || "批量更新狀態失敗"
+            });
           }
-        }, 500);
+        } catch (error) {
+          // 顯示錯誤訊息
+          this.$emit("display-message", {
+            type: "error",
+            message: "批量更新狀態時發生錯誤: " + (error.message || "未知錯誤")
+          });
+          console.error("批量更新狀態錯誤:", error);
+        } finally {
+          this.submitLoading = false;
+        }
       });
     },
 
@@ -667,9 +696,9 @@ export default {
       const statusLabel = this.getStatusLabel(this.form.status);
       const filename = `批量更新_${statusLabel}_${timestamp}`;
 
-      // 建立標準化的欄位配置
+      // 建立標準化的欄位配置 - 適配 SalesManagement 的欄位
       const columns = [
-        { prop: this.titleField, label: "單號", minWidth: 120 },
+        { prop: this.titleField, label: "訂單編號", minWidth: 120 },
         {
           prop: "originalStatus",
           label: "原始狀態",
@@ -689,7 +718,10 @@ export default {
           minWidth: 150,
           formatter: row =>
             formatDate(row.statusUpdateTime, "YYYY-MM-DD HH:mm:ss")
-        }
+        },
+        { prop: "receiver_name", label: "收件人", minWidth: 100 },
+        { prop: "receiver_phone", label: "收件電話", minWidth: 130 },
+        { prop: "receiver_address", label: "收件地址", minWidth: 200 }
       ];
 
       // 取得子項目資料
@@ -697,10 +729,9 @@ export default {
         row => row.details && row.details.length > 0
       );
       const subColumns = [
-        { prop: "batchNumber", label: "批號", minWidth: 120 },
-        { prop: "productCode", label: "品號", minWidth: 100 },
-        { prop: "productName", label: "品名", minWidth: 180 },
-        { prop: "specification", label: "規格", minWidth: 120 },
+        { prop: "product_name", label: "商品名稱", minWidth: 200 },
+        { prop: "item_code", label: "品號", minWidth: 120 },
+        { prop: "batch_number", label: "批號", minWidth: 120 },
         { prop: "quantity", label: "數量", minWidth: 80, align: "right" }
       ];
 

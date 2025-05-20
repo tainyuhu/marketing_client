@@ -73,7 +73,7 @@
                 action-label="操作"
                 action-width="160"
                 action-fixed="right"
-                :status-options="statusOptions"
+                :status-options="fulfillmentStatusOptions"
                 @selection-change="handleSelectionChange"
                 @sort-change="handleSortChange"
                 @expand-change="handleExpandChange"
@@ -142,7 +142,7 @@
                 action-label="操作"
                 action-width="160"
                 action-fixed="right"
-                :status-options="statusOptions"
+                :status-options="fulfillmentStatusOptions"
                 @selection-change="handleSelectionChange"
                 @sort-change="handleSortChange"
                 @expand-change="handleExpandChange"
@@ -335,8 +335,6 @@ export default {
         { label: "處理取消", value: "cancelled", type: "danger" }
       ],
 
-      statusOptions: [],
-
       // 表格列配置
       salesColumns: [
         { prop: "order_number", label: "訂單編號", sortable: true, width: 150 },
@@ -397,7 +395,7 @@ export default {
 
   created() {
     // 設置狀態選項
-    this.statusOptions = this.fulfillmentStatusOptions;
+    this.fulfillmentStatusOptions = this.fulfillmentStatusOptions;
     // 獲取訂單數據
     this.fetchSalesData();
   },

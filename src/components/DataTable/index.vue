@@ -242,8 +242,8 @@
       :visible.sync="batchUpdateDialogVisible"
       :selected-rows="selectedRows"
       :status-options="statusOptions"
-      status-field="status"
-      title-field="orderNumber"
+      :status-field="statusField"
+      :title-field="titleField"
       @update="handleUpdateStatus"
       @display-message="handleDialogMessage"
       @show-export-dialog="showExportAfterUpdate"
@@ -377,14 +377,24 @@ export default {
       type: Function,
       default: () => true
     },
-    // 狀態選項
+    // 狀態選項配置 - 符合 SalesManagement 的需求
     statusOptions: {
       type: Array,
       default: () => [
-        { value: 0, label: "未處理", type: "danger" },
-        { value: 1, label: "已處理", type: "success" },
-        { value: 2, label: "處理中", type: "warning" }
+        { label: "未處理", value: "unprocessed", type: "warning" },
+        { label: "已處理", value: "processed", type: "success" },
+        { label: "處理取消", value: "cancelled", type: "danger" }
       ]
+    },
+    // 狀態字段名稱
+    statusField: {
+      type: String,
+      default: "fulfillment_status"
+    },
+    // 標題字段名稱
+    titleField: {
+      type: String,
+      default: "order_number"
     },
     //是否顯示子表格
     showSubTable: {
@@ -650,16 +660,16 @@ export default {
       return value;
     },
 
-    // 格式化狀態值
+    // 格式化狀態值 - 符合 SalesManagement 的需求
     formatStatusValue(value) {
       const option = this.statusOptions.find(opt => opt.value === value);
       return option ? option.label : value;
     },
 
-    // 獲取狀態標籤類型
+    // 獲取狀態標籤類型 - 符合 SalesManagement 的需求
     getStatusTagType(value) {
       const option = this.statusOptions.find(opt => opt.value === value);
-      return option ? option.type : "";
+      return option ? option.type : "info";
     },
 
     // 處理展開行變化
@@ -710,7 +720,7 @@ export default {
       this.$emit("batch-update", updateResult);
     },
 
-    // handleUpdateStatus
+    // handleUpdateStatus - 修改以符合 SalesManagement 的需求
     handleUpdateStatus(updateResult) {
       // 實際應用中這裡應該調用API更新狀態
       updateResult.rows.forEach(row => {
@@ -719,7 +729,8 @@ export default {
           item => item[this.rowKey] === row[this.rowKey]
         );
         if (index !== -1) {
-          this.data[index].status = updateResult.status;
+          // 使用配置的狀態字段
+          this.data[index][this.statusField] = updateResult.status;
           if (updateResult.comment) {
             this.data[index].comment = updateResult.comment;
           }
@@ -845,7 +856,6 @@ export default {
   }
 };
 </script>
-
 <style lang="scss">
 // 變數定義
 // 顏色
