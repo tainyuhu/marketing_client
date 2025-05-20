@@ -1264,10 +1264,18 @@ export const orderAdminApi = {
       params
     }),
 
-  // 批量更新訂單狀態
+  // 批量更新訂單狀態(接單跟付款狀態)
   batchUpdateStatus: data =>
     request({
       url: "/wms/order/batch_update_status/",
+      method: "post",
+      data
+    }),
+
+  // 批量更新訂單狀態(出貨狀態)
+  batchUpdateFulfillmentStatus: data =>
+    request({
+      url: "/wms/order/batch_update_fulfillment_status/",
       method: "post",
       data
     })
