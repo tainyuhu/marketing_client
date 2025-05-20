@@ -5,9 +5,14 @@
     :fullscreen="isMobile"
     :width="isMobile ? '100%' : '500px'"
     :close-on-click-modal="false"
-    :modal="true"
+    :append-to-body="true"
+    :modal-append-to-body="false"
+    :modal="false"
+    :lock-scroll="true"
+    :destroy-on-close="true"
     custom-class="service-dialog"
     @close="handleClose"
+    @open="handleOpen"
   >
     <div class="customer-service-dialog">
       <div class="dialog-header">
@@ -15,12 +20,17 @@
         <h2>客戶服務中心</h2>
       </div>
 
-      <!-- 上班時間提示區塊 - 新增在頂部顯著位置 -->
-      <div class="business-hours-alert">
+      <!-- 上班時間提示區塊 - 根據API獲取的服務時間 -->
+      <div class="business-hours-alert" :class="{ offline: !isBusinessHours }">
         <i class="el-icon-time"></i>
         <div class="hours-text">
           <div class="hours-title">客服上班時間</div>
-          <div class="hours-detail">週一至週五 09:00-18:00</div>
+          <div class="hours-detail">
+            週{{ formatBusinessDays(serviceConfig.business_days) }}
+            {{ formatTime(serviceConfig.business_hours_start) }}-{{
+              formatTime(serviceConfig.business_hours_end)
+            }}
+          </div>
         </div>
         <div
           class="status-indicator"
@@ -76,7 +86,9 @@
               <i class="el-icon-phone"></i>
               <div class="contact-details">
                 <div class="contact-label">客服專線</div>
-                <div class="contact-value">0800-123-456</div>
+                <div class="contact-value">
+                  {{ serviceConfig.customer_service_phone }}
+                </div>
               </div>
               <i class="el-icon-arrow-right"></i>
             </div>
@@ -85,12 +97,12 @@
               <i class="el-icon-message"></i>
               <div class="contact-details">
                 <div class="contact-label">電子郵件</div>
-                <div class="contact-value">service@example.com</div>
+                <div class="contact-value">
+                  {{ serviceConfig.customer_service_email }}
+                </div>
               </div>
               <i class="el-icon-arrow-right"></i>
             </div>
-
-            <!-- 移除原本的上班時間區塊，因為已經移到頂部 -->
           </div>
         </el-collapse-item>
       </el-collapse>
@@ -107,16 +119,19 @@
           label-position="top"
           class="mobile-form"
         >
-          <el-form-item label="問題類型" prop="type">
+          <el-form-item label="問題類型" prop="request_type">
             <el-select
-              v-model="messageForm.type"
+              v-model="messageForm.request_type"
               placeholder="請選擇問題類型"
               style="width: 100%;"
             >
-              <el-option label="訂單問題" value="order"></el-option>
-              <el-option label="配送問題" value="delivery"></el-option>
-              <el-option label="退換貨" value="return"></el-option>
-              <el-option label="其他" value="other"></el-option>
+              <el-option
+                v-for="option in requestTypeOptions"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              >
+              </el-option>
             </el-select>
           </el-form-item>
           <el-form-item label="留言內容" prop="content">
@@ -134,13 +149,15 @@
     <div class="fixed-footer" slot="footer">
       <el-button @click="handleClose" plain>取消</el-button>
       <el-button type="primary" @click="handleSubmit" :loading="isSubmitting"
-        >送出留言</el-button
+        >送出</el-button
       >
     </div>
   </el-dialog>
 </template>
 
 <script>
+import Services from "../../services/Services.js";
+
 export default {
   name: "CustomerServiceDialog",
 
@@ -158,11 +175,12 @@ export default {
   data() {
     return {
       messageForm: {
-        type: "",
-        content: ""
+        request_type: "",
+        content: "",
+        order: null
       },
       rules: {
-        type: [
+        request_type: [
           { required: true, message: "請選擇問題類型", trigger: "change" }
         ],
         content: [
@@ -171,7 +189,26 @@ export default {
       },
       activeNames: ["1", "2"],
       isSubmitting: false,
-      isMobile: window.innerWidth < 768
+      isMobile: window.innerWidth < 768,
+      serviceConfig: {
+        business_hours_start: "08:00",
+        business_hours_end: "17:00",
+        business_days: "1,2,3,4,5",
+        customer_service_phone: "",
+        customer_service_email: "",
+        auto_reply_enabled: true,
+        auto_reply_message: "感謝您的留言",
+        notification_email: ""
+      },
+      isBusinessHours: false,
+      requestTypeOptions: [
+        { value: "order", label: "訂單問題" },
+        { value: "delivery", label: "配送問題" },
+        { value: "return", label: "退換貨" },
+        { value: "product", label: "產品諮詢" },
+        { value: "other", label: "其他" }
+      ],
+      customOverlay: null
     };
   },
 
@@ -183,28 +220,151 @@ export default {
       set(val) {
         this.$emit("update:visible", val);
       }
-    },
-
-    // 判斷當前是否在上班時間內
-    isBusinessHours() {
-      const now = new Date();
-      const day = now.getDay(); // 0是星期日，1-5是星期一至五，6是星期六
-      const hour = now.getHours();
-
-      // 判斷是否是週一至週五（1-5）且在9:00-18:00之間
-      return day >= 1 && day <= 5 && hour >= 9 && hour < 18;
     }
   },
 
   mounted() {
     window.addEventListener("resize", this.checkScreenSize);
+    this.fetchServiceConfig();
   },
 
   beforeDestroy() {
     window.removeEventListener("resize", this.checkScreenSize);
+    this.removeCustomOverlay();
+  },
+
+  watch: {
+    visible(val) {
+      if (val) {
+        // 當對話框打開時
+        this.createCustomOverlay();
+        document.body.style.overflow = "hidden";
+      } else {
+        // 當對話框關閉時
+        this.removeCustomOverlay();
+        document.body.style.overflow = "";
+      }
+    },
+    orderInfo: {
+      handler(newVal) {
+        if (newVal && newVal.id) {
+          this.messageForm.order = newVal.id;
+        }
+      },
+      immediate: true
+    }
   },
 
   methods: {
+    // 創建自定義半透明背景
+    createCustomOverlay() {
+      // 移除舊的覆蓋層
+      this.removeCustomOverlay();
+
+      // 創建新的覆蓋層
+      this.customOverlay = document.createElement("div");
+      this.customOverlay.className = "custom-modal-overlay";
+      document.body.appendChild(this.customOverlay);
+
+      // 確保新覆蓋層在對話框下方
+      setTimeout(() => {
+        const dialogs = document.querySelectorAll(".el-dialog__wrapper");
+        if (dialogs.length > 0) {
+          const lastDialog = dialogs[dialogs.length - 1];
+          const zIndex = getComputedStyle(lastDialog).zIndex;
+          this.customOverlay.style.zIndex = zIndex - 1;
+        }
+      }, 10);
+    },
+
+    // 移除自定義覆蓋層
+    removeCustomOverlay() {
+      if (this.customOverlay && this.customOverlay.parentNode) {
+        this.customOverlay.parentNode.removeChild(this.customOverlay);
+        this.customOverlay = null;
+      }
+
+      // 移除所有v-modal覆蓋層
+      const modals = document.querySelectorAll(".v-modal");
+      modals.forEach(modal => {
+        if (modal.parentNode) {
+          modal.parentNode.removeChild(modal);
+        }
+      });
+    },
+
+    // 對話框打開時事件處理
+    handleOpen() {
+      this.$nextTick(() => {
+        // 確保對話框在最前層
+        const dialogWrapper = document.querySelector(".service-dialog")
+          .parentNode;
+        if (dialogWrapper) {
+          dialogWrapper.style.zIndex = "2010";
+        }
+
+        // 移除所有v-modal元素
+        const modals = document.querySelectorAll(".v-modal");
+        modals.forEach(modal => {
+          if (modal.parentNode) {
+            modal.parentNode.removeChild(modal);
+          }
+        });
+      });
+    },
+
+    async fetchServiceConfig() {
+      try {
+        // 使用API獲取客服設定
+        const result = await Services.getCustomerServiceConfig();
+
+        if (result && result.config) {
+          this.serviceConfig = result.config;
+          this.isBusinessHours = result.is_business_hours;
+        }
+      } catch (error) {
+        console.error("獲取客服設定失敗:", error);
+        // 保留默認設定
+      }
+    },
+
+    formatBusinessDays(businessDays) {
+      if (!businessDays) return "一至五";
+
+      const dayMap = {
+        "0": "日",
+        "1": "一",
+        "2": "二",
+        "3": "三",
+        "4": "四",
+        "5": "五",
+        "6": "六"
+      };
+
+      const days = businessDays.split(",");
+      if (
+        days.length === 5 &&
+        days.includes("1") &&
+        days.includes("2") &&
+        days.includes("3") &&
+        days.includes("4") &&
+        days.includes("5")
+      ) {
+        return "一至五";
+      }
+
+      return days.map(d => dayMap[d]).join("、");
+    },
+
+    formatTime(timeString) {
+      if (!timeString) return "";
+      // 如果時間格式包含秒，只顯示到分鐘
+      if (timeString.length > 5) {
+        return timeString.substring(0, 5);
+      }
+      return timeString;
+    },
+
     checkScreenSize() {
       this.isMobile = window.innerWidth < 768;
     },
@@ -219,15 +379,23 @@ export default {
     },
 
     handleCall() {
+      const phoneNumber = this.serviceConfig.customer_service_phone.replace(
+        /[\s-]/g,
+        ""
+      );
       if (this.isMobile) {
-        window.location.href = "tel:0800123456";
+        window.location.href = `tel:${phoneNumber}`;
       } else {
-        this.$message.info("客服專線：0800-123-456");
+        this.$message.info(
+          `客服專線：${this.serviceConfig.customer_service_phone}`
+        );
       }
     },
 
     handleEmail() {
-      window.location.href = "mailto:service@example.com";
+      window.location.href = `mailto:${
+        this.serviceConfig.customer_service_email
+      }`;
     },
 
     handleClose() {
@@ -238,21 +406,87 @@ export default {
       this.$emit("close");
     },
 
-    handleSubmit() {
-      this.$refs.messageForm.validate(valid => {
+    // 獲取請求類型標籤
+    getRequestTypeLabel(value) {
+      const option = this.requestTypeOptions.find(opt => opt.value === value);
+      return option ? option.label : "未知類型";
+    },
+
+    async handleSubmit() {
+      this.$refs.messageForm.validate(async valid => {
         if (valid) {
           this.isSubmitting = true;
 
-          // 模擬API呼叫
-          setTimeout(() => {
+          try {
+            // 使用API服務創建客服請求
+            const data = {
+              request_type: this.messageForm.request_type,
+              content: this.messageForm.content
+            };
+
+            // 如果有關聯訂單，添加訂單ID
+            if (this.orderInfo && this.orderInfo.id) {
+              data.order = this.orderInfo.id;
+            }
+
+            // 呼叫API創建客服請求
+            const response = await Services.createServiceRequest(data);
+
+            // 先關閉客服對話框，這樣成功對話框才不會被擋住
+            this.dialogVisible = false;
+
+            // 延遲一小段時間確保主對話框已關閉
+            setTimeout(() => {
+              // 準備顯示成功對話框的數據
+              const orderNumber =
+                this.orderInfo && this.orderInfo.orderNumber
+                  ? this.orderInfo.orderNumber
+                  : "無";
+              const requestType = this.getRequestTypeLabel(
+                this.messageForm.request_type
+              );
+              const messageContent = this.messageForm.content;
+
+              // 創建成功對話框內容
+              const confirmHtml =
+                '<div style="text-align: center;">' +
+                '<i class="el-icon-success" style="font-size: 48px; color: #67C23A; margin-bottom: 15px;"></i>' +
+                '<h3 style="margin-bottom: 10px;">留言已送出成功</h3>' +
+                '<p style="color: #909399;">訂單編號: ' +
+                orderNumber +
+                "</p>" +
+                '<p style="color: #909399;">問題類型: ' +
+                requestType +
+                "</p>" +
+                '<p style="color: #909399; margin-bottom: 15px;">留言內容: ' +
+                messageContent +
+                "</p>" +
+                '<div style="font-weight: bold; color: #303133;">我們會盡快與您聯絡</div>' +
+                "</div>";
+
+              // 顯示成功對話框
+              this.$confirm(confirmHtml, "留言送出成功", {
+                dangerouslyUseHTMLString: true,
+                confirmButtonText: "確定",
+                showCancelButton: false,
+                type: "success",
+                center: true,
+                customClass: "success-dialog" // 新增自定義類名以便設置樣式
+              });
+            }, 300); // 給主對話框關閉的時間
+
+            // 重置表單（不需要等待確認框關閉）
+            if (this.$refs.messageForm) {
+              this.$refs.messageForm.resetFields();
+            }
+
+            // 通知父組件對話框已關閉
+            this.$emit("close");
+          } catch (error) {
+            console.error("送出留言失敗:", error);
+            this.$message.error("留言送出失敗，請稍後再試");
             this.isSubmitting = false;
-            this.$message({
-              type: "success",
-              message: "留言已送出，我們會盡快回覆您",
-              duration: 2000
-            });
-            this.handleClose();
-          }, 800);
+          }
         }
       });
     }
@@ -261,8 +495,31 @@ export default {
 </script>
 
 <style lang="scss">
-// 全域樣式調整
+// 自定義模態背景覆蓋層
+.custom-modal-overlay {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 2000;
+}
+
+// 確保對話框在所有元素之上
 .service-dialog {
+  z-index: 2010 !important;
+}
+
+// 移除默認的覆蓋層
+.v-modal {
+  display: none !important;
+}
+
+// 全域樣式調整
+.el-dialog__wrapper.service-dialog {
+  z-index: 2010 !important;
+
   @media (max-width: 767px) {
     margin: 0 !important;
     border-radius: 0 !important;
@@ -280,6 +537,36 @@ export default {
 
     .el-dialog__footer {
       padding: 0 !important;
+    }
+  }
+}
+
+// 成功確認框樣式
+.success-dialog {
+  z-index: 3000 !important; // 確保在最上層
+
+  .el-message-box {
+    max-width: 400px;
+    border-radius: 8px;
+  }
+
+  .el-message-box__status {
+    font-size: 32px !important;
+  }
+
+  .el-message-box__title {
+    font-weight: bold;
+    font-size: 18px;
+  }
+
+  .el-message-box__content {
+    padding: 20px;
+  }
+
+  .el-message-box__btns {
+    .el-button {
+      min-width: 120px;
+      border-radius: 8px;
     }
   }
 }

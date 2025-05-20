@@ -814,6 +814,13 @@ export const orderApi = {
       data
     }),
 
+  patchOrder: (id, data) =>
+    request({
+      url: `/wms/order/${id}/`,
+      method: "patch",
+      data
+    }),
+
   // 刪除訂單
   deleteOrder: id =>
     request({
@@ -872,6 +879,22 @@ export const orderApi = {
       url: "/wms/order/calculate-promotion/",
       method: "post",
       data
+    }),
+
+  // 確認訂單付款
+  // confirmPayment: (orderId, paymentInfo) =>
+  //   request({
+  //     url: `/wms/order/${orderId}/confirm_payment/`,
+  //     method: "post",
+  //     data: paymentInfo
+  //   }),
+
+  // 回報訂單末五碼
+  reportBankCode: (orderId, bankCode) =>
+    request({
+      url: `/wms/order/${orderId}/confirm_payment/`,
+      method: "post",
+      data: { bank_code: bankCode }
     })
 };
 
@@ -1224,6 +1247,108 @@ export const customerServiceHistoryApi = {
     })
 };
 
+export const orderAdminApi = {
+  // 管理員或市場角色：查詢所有訂單與詳情（含商品與圖片）
+  getAllOrders: (params = {}) =>
+    request({
+      url: "/wms/order/admin_orders/",
+      method: "get",
+      params
+    }),
+
+  // 管理員或市場角色：查看所有已接單的訂單及其項目（含圖片）以及出貨明細
+  getAllOrdersShipment: (params = {}) =>
+    request({
+      url: "/wms/order/admin_orders_shipment/",
+      method: "get",
+      params
+    }),
+
+  // 批量更新訂單狀態
+  batchUpdateStatus: data =>
+    request({
+      url: "/wms/order/batch_update_status/",
+      method: "post",
+      data
+    })
+};
+
+export const orderRemarkApi = {
+  // 獲取訂單備註列表
+  getOrderRemarks: (orderId, params = {}) =>
+    request({
+      url: `/wms/order/${orderId}/remarks/`,
+      method: "get",
+      params
+    }),
+
+  // 獲取訂單最新備註
+  getLatestOrderRemark: orderId =>
+    request({
+      url: `/wms/order/${orderId}/latest_remark/`,
+      method: "get"
+    }),
+
+  // 批量獲取多個訂單的最新備註
+  getBatchLatestRemarks: orderIds =>
+    request({
+      url: `/wms/order/batch_latest_remarks/`,
+      method: "post",
+      data: { order_ids: orderIds }
+    }),
+
+  // 添加訂單備註
+  addOrderRemark: (orderId, data) =>
+    request({
+      url: `/wms/order/${orderId}/add_remark/`,
+      method: "post",
+      data
+    }),
+
+  // 更新訂單備註
+  updateOrderRemark: (orderId, data) =>
+    request({
+      url: `/wms/order/${orderId}/update_remark/`,
+      method: "post",
+      data
+    }),
+
+  // 刪除訂單備註
+  deleteOrderRemark: (orderId, remarkId) =>
+    request({
+      url: `/wms/order/${orderId}/delete_remark/`,
+      method: "post",
+      data: { id: remarkId }
+    }),
+
+  // 添加備註圖片
+  addRemarkImage: (orderId, data) =>
+    request({
+      url: `/wms/order/${orderId}/add_remark_image/`,
+      method: "post",
+      data
+    }),
+
+  // 刪除備註圖片
+  deleteRemarkImage: (orderId, imageId) =>
+    request({
+      url: `/wms/order/${orderId}/delete_remark_image/`,
+      method: "post",
+      data: { image_id: imageId }
+    }),
+
+  // 上傳備註圖片（如果您的後端支持直接上傳圖片）
+  uploadRemarkImages: formData =>
+    request({
+      url: `/wms/upload/images/`,
+      method: "post",
+      headers: {
+        "Content-Type": "multipart/form-data"
+      },
+      data: formData
+    })
+};
+
 // 導出所有 API
 export default {
   categoryApi,
@@ -1246,5 +1371,7 @@ export default {
   customerServiceRequestApi,
   customerServiceMessageApi,
   faqApi,
-  customerServiceHistoryApi
+  customerServiceHistoryApi,
+  orderAdminApi,
+  orderRemarkApi
 };

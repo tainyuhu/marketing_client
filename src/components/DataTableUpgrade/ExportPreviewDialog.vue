@@ -1,9 +1,12 @@
-<!-- components/DataTable/ExportPreviewDialog.vue -->
 <template>
   <el-dialog
     title="匯出資料預覽"
     :visible.sync="dialogVisible"
     width="800px"
+    :append-to-body="true"
+    :modal-append-to-body="false"
+    :modal="false"
+    :close-on-press-escape="false"
     :close-on-click-modal="false"
     :before-close="handleClose"
     custom-class="list-dialog"
@@ -57,15 +60,28 @@
                 >
                   全選
                 </el-checkbox>
+                <el-switch
+                  v-model="hideRemarkColumns"
+                  active-text="隱藏備註欄位"
+                  inactive-text="顯示所有欄位"
+                  @change="handleHideRemarkColumnsChange"
+                ></el-switch>
               </div>
               <div class="column-list">
                 <div
-                  v-for="column in exportableColumns"
+                  v-for="column in visibleExportableColumns"
                   :key="column.prop"
                   class="column-item"
                 >
                   <el-checkbox v-model="selectedColumns" :label="column.prop">
                     {{ column.label }}
+                    <el-tooltip
+                      v-if="column.isRemark"
+                      content="備註欄位"
+                      placement="top"
+                    >
+                      <i class="el-icon-info remark-icon"></i>
+                    </el-tooltip>
                   </el-checkbox>
                 </div>
               </div>
@@ -82,10 +98,16 @@
                 >
                   全選
                 </el-checkbox>
+                <el-switch
+                  v-model="hideSubRemarkColumns"
+                  active-text="隱藏備註欄位"
+                  inactive-text="顯示所有欄位"
+                  @change="handleHideSubRemarkColumnsChange"
+                ></el-switch>
               </div>
               <div class="column-list">
                 <div
-                  v-for="column in exportableSubColumns"
+                  v-for="column in visibleExportableSubColumns"
                   :key="column.prop"
                   class="column-item"
                 >
@@ -94,6 +116,13 @@
                     :label="column.prop"
                   >
                     {{ column.label }}
+                    <el-tooltip
+                      v-if="column.isRemark"
+                      content="備註欄位"
+                      placement="top"
+                    >
+                      <i class="el-icon-info remark-icon"></i>
+                    </el-tooltip>
                   </el-checkbox>
                 </div>
               </div>
@@ -127,6 +156,12 @@
                     {{ formatValue(scope.row, column) }}
                   </template>
                 </el-table-column>
+                <template slot="empty">
+                  <el-empty
+                    description="暫無預覽數據"
+                    :image-size="80"
+                  ></el-empty>
+                </template>
               </el-table>
             </div>
           </el-tab-pane>
@@ -156,6 +191,12 @@
                     {{ formatValue(scope.row, column) }}
                   </template>
                 </el-table-column>
+                <template slot="empty">
+                  <el-empty
+                    description="暫無預覽數據"
+                    :image-size="80"
+                  ></el-empty>
+                </template>
               </el-table>
             </div>
           </el-tab-pane>
@@ -193,6 +234,15 @@
               <el-radio-button label="separate">分開表單</el-radio-button>
               <el-radio-button label="combined">合併表單</el-radio-button>
             </el-radio-group>
+          </div>
+          <div class="option-item">
+            <div class="option-label">備註處理：</div>
+            <el-checkbox v-model="exportRemarks" border size="small"
+              >包含備註欄位</el-checkbox
+            >
+            <el-tooltip content="關閉此選項將排除所有備註欄位" placement="top">
+              <i class="el-icon-question remark-help-icon"></i>
+            </el-tooltip>
           </div>
         </div>
       </div>
@@ -279,33 +329,91 @@ export default {
       exportFilename: "",
       selectedFormat: "xlsx",
       exportLoading: false,
-      sheetConfig: "separate" // 預設分開表單
+      sheetConfig: "separate", // 預設分開表單
+      exportRemarks: false, // 預設不包含備註欄位
+      hideRemarkColumns: true, // 預設隱藏備註欄位
+      hideSubRemarkColumns: true, // 預設隱藏子表格備註欄位
+      remarkKeywords: ["remark", "comment", "note", "備註", "說明", "註解"] // 用於識別備註欄位的關鍵字
     };
   },
 
   computed: {
-    // 可匯出的主項目列
+    // 檢測欄位是否為備註欄位
+    isRemarkColumn() {
+      return column => {
+        // 如果已明確標記為備註欄位
+        if (column.isRemark) return true;
+
+        // 檢查欄位名稱是否包含備註關鍵字
+        const lowerProp = column.prop.toLowerCase();
+        const lowerLabel = (column.label || "").toLowerCase();
+
+        return this.remarkKeywords.some(
+          keyword => lowerProp.includes(keyword) || lowerLabel.includes(keyword)
+        );
+      };
+    },
+
+    // 可匯出的主項目列(添加備註標記)
     exportableColumns() {
-      return this.columns.filter(col => !col.noExport);
+      return this.columns
+        .filter(col => !col.noExport)
+        .map(col => ({
+          ...col,
+          isRemark: this.isRemarkColumn(col) || false
+        }));
     },
 
-    // 可匯出的子項目列
+    // 可匯出的子項目列(添加備註標記)
     exportableSubColumns() {
-      return this.subColumns.filter(col => !col.noExport);
+      return this.subColumns
+        .filter(col => !col.noExport)
+        .map(col => ({
+          ...col,
+          isRemark: this.isRemarkColumn(col) || false
+        }));
     },
 
-    // 當前顯示的主項目列
+    // 可見的可匯出主項目列(根據是否隱藏備註欄位)
+    visibleExportableColumns() {
+      return this.hideRemarkColumns
+        ? this.exportableColumns.filter(col => !col.isRemark)
+        : this.exportableColumns;
+    },
+
+    // 可見的可匯出子項目列(根據是否隱藏備註欄位)
+    visibleExportableSubColumns() {
+      return this.hideSubRemarkColumns
+        ? this.exportableSubColumns.filter(col => !col.isRemark)
+        : this.exportableSubColumns;
+    },
+
+    // 當前顯示的主項目列(根據是否匯出備註)
     displayColumns() {
-      return this.exportableColumns.filter(col =>
+      let columns = this.exportableColumns.filter(col =>
         this.selectedColumns.includes(col.prop)
       );
+
+      // 如果不匯出備註，過濾備註欄位
+      if (!this.exportRemarks) {
+        columns = columns.filter(col => !col.isRemark);
+      }
+
+      return columns;
     },
 
-    // 當前顯示的子項目列
+    // 當前顯示的子項目列(根據是否匯出備註)
     displaySubColumns() {
-      return this.exportableSubColumns.filter(col =>
+      let columns = this.exportableSubColumns.filter(col =>
         this.selectedSubColumns.includes(col.prop)
       );
+
+      // 如果不匯出備註，過濾備註欄位
+      if (!this.exportRemarks) {
+        columns = columns.filter(col => !col.isRemark);
+      }
+
+      return columns;
     },
 
     // 主項目預覽資料
@@ -369,32 +477,39 @@ export default {
     },
     selectedColumns(val) {
       const checkedCount = val.length;
-      const totalCount = this.exportableColumns.length;
+      const totalCount = this.visibleExportableColumns.length;
 
       this.selectAllColumns = checkedCount === totalCount;
       this.isIndeterminate = checkedCount > 0 && checkedCount < totalCount;
     },
     selectedSubColumns(val) {
       const checkedCount = val.length;
-      const totalCount = this.exportableSubColumns.length;
+      const totalCount = this.visibleExportableSubColumns.length;
 
       this.selectAllSubColumns = checkedCount === totalCount;
       this.isSubIndeterminate = checkedCount > 0 && checkedCount < totalCount;
+    },
+    // 監聽匯出備註欄位開關
+    exportRemarks(val) {
+      this.refreshPreview();
     }
   },
 
   methods: {
     // 初始化對話框
     initializeDialog() {
-      // 設定預設選中所有主項目列
-      this.selectedColumns = this.exportableColumns.map(col => col.prop);
-      this.selectAllColumns = true;
-      this.isIndeterminate = false;
+      // 設定預設不選中備註欄位
+      this.identifyRemarkColumns();
 
-      // 設定預設選中所有子項目列
-      this.selectedSubColumns = this.exportableSubColumns.map(col => col.prop);
-      this.selectAllSubColumns = true;
-      this.isSubIndeterminate = false;
+      // 設定預設選中除備註外的所有主項目列
+      this.selectedColumns = this.visibleExportableColumns.map(col => col.prop);
+      this.updateSelectAllStatus();
+
+      // 設定預設選中除備註外的所有子項目列
+      this.selectedSubColumns = this.visibleExportableSubColumns.map(
+        col => col.prop
+      );
+      this.updateSubSelectAllStatus();
 
       // 設定預設檔案名稱
       const timestamp = formatDate(new Date(), "YYYYMMDD_HHmmss");
@@ -402,6 +517,25 @@ export default {
 
       // 設定預設匯出範圍
       this.exportRange = this.hasChildItems ? "mainWithChild" : "main";
+    },
+
+    // 識別備註欄位
+    identifyRemarkColumns() {
+      // 這個方法在初始化時被調用，確保所有列都被正確識別為備註或非備註
+      // 實際邏輯已在 computed 屬性中實現
+    },
+
+    // 刷新預覽
+    refreshPreview() {
+      // 強制刷新表格預覽
+      this.$nextTick(() => {
+        if (this.$refs.previewTable) {
+          this.$refs.previewTable.doLayout();
+        }
+        if (this.$refs.previewSubTable) {
+          this.$refs.previewSubTable.doLayout();
+        }
+      });
     },
 
     // 格式化值
@@ -412,14 +546,83 @@ export default {
     // 處理全選主項目列變化
     handleCheckAllColumnsChange(val) {
       this.selectedColumns = val
-        ? this.exportableColumns.map(col => col.prop)
+        ? this.visibleExportableColumns.map(col => col.prop)
         : [];
+    },
+
+    // 更新主表全選狀態
+    updateSelectAllStatus() {
+      const checkedCount = this.selectedColumns.length;
+      const totalCount = this.visibleExportableColumns.length;
+
+      this.selectAllColumns = checkedCount === totalCount;
+      this.isIndeterminate = checkedCount > 0 && checkedCount < totalCount;
+    },
+
+    // 更新子表全選狀態
+    updateSubSelectAllStatus() {
+      const checkedCount = this.selectedSubColumns.length;
+      const totalCount = this.visibleExportableSubColumns.length;
+
+      this.selectAllSubColumns = checkedCount === totalCount;
+      this.isSubIndeterminate = checkedCount > 0 && checkedCount < totalCount;
+    },
+
+    // 處理隱藏主表備註欄位變化
+    handleHideRemarkColumnsChange(val) {
+      // 重新選取列
+      if (val) {
+        // 隱藏備註欄位時，從選中列中移除備註欄位
+        this.selectedColumns = this.selectedColumns.filter(prop => {
+          const column = this.exportableColumns.find(col => col.prop === prop);
+          return column && !column.isRemark;
+        });
+      } else {
+        // 顯示備註欄位時，如果是全選狀態，添加所有備註欄位
+        if (this.selectAllColumns) {
+          const remarkProps = this.exportableColumns
+            .filter(col => col.isRemark)
+            .map(col => col.prop);
+          this.selectedColumns = [...this.selectedColumns, ...remarkProps];
+        }
+      }
+
+      this.updateSelectAllStatus();
+      this.refreshPreview();
+    },
+
+    // 處理隱藏子表備註欄位變化
+    handleHideSubRemarkColumnsChange(val) {
+      // 重新選取列
+      if (val) {
+        // 隱藏備註欄位時，從選中列中移除備註欄位
+        this.selectedSubColumns = this.selectedSubColumns.filter(prop => {
+          const column = this.exportableSubColumns.find(
+            col => col.prop === prop
+          );
+          return column && !column.isRemark;
+        });
+      } else {
+        // 顯示備註欄位時，如果是全選狀態，添加所有備註欄位
+        if (this.selectAllSubColumns) {
+          const remarkProps = this.exportableSubColumns
+            .filter(col => col.isRemark)
+            .map(col => col.prop);
+          this.selectedSubColumns = [
+            ...this.selectedSubColumns,
+            ...remarkProps
+          ];
+        }
+      }
+
+      this.updateSubSelectAllStatus();
+      this.refreshPreview();
     },
 
     // 處理全選子項目列變化
     handleCheckAllSubColumnsChange(val) {
       this.selectedSubColumns = val
-        ? this.exportableSubColumns.map(col => col.prop)
+        ? this.visibleExportableSubColumns.map(col => col.prop)
         : [];
     },
 
@@ -448,12 +651,26 @@ export default {
 
     // 處理匯出
     handleExport() {
-      if (this.selectedColumns.length === 0) {
+      const effectiveColumns = this.exportRemarks
+        ? this.selectedColumns
+        : this.selectedColumns.filter(prop => {
+            const col = this.exportableColumns.find(c => c.prop === prop);
+            return col && !col.isRemark;
+          });
+
+      const effectiveSubColumns = this.exportRemarks
+        ? this.selectedSubColumns
+        : this.selectedSubColumns.filter(prop => {
+            const col = this.exportableSubColumns.find(c => c.prop === prop);
+            return col && !col.isRemark;
+          });
+
+      if (effectiveColumns.length === 0) {
         this.$message.warning("請至少選擇一個主項目匯出欄位");
         return;
       }
 
-      if (this.hasChildItems && this.selectedSubColumns.length === 0) {
+      if (this.hasChildItems && effectiveSubColumns.length === 0) {
         this.$message.warning("請至少選擇一個子項目匯出欄位");
         return;
       }
@@ -473,7 +690,8 @@ export default {
         mainColumns: this.displayColumns,
         subColumns: this.displaySubColumns,
         selectedRows: this.selectedRows,
-        subItems: this.hasChildItems ? this.getAllSubItems() : []
+        subItems: this.hasChildItems ? this.getAllSubItems() : [],
+        includeRemarks: this.exportRemarks
       };
 
       // 延遲模擬匯出過程

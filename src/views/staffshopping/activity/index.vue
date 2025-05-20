@@ -65,7 +65,7 @@
           v-for="product in products"
           :key="product.id"
           class="product-card"
-          @click="goToProductDetail(product.id)"
+          @click="goToProductDetail(product.product)"
         >
           <div class="product-image">
             <img :src="product.image_url" :alt="product.name" loading="lazy" />

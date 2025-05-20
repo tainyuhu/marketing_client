@@ -49,7 +49,14 @@
               <span class="value">{{ formatDate(order.orderDate) }}</span>
             </div>
             <!-- 訂單狀態 -->
+            <div class="order-status" v-if="order.payment_status">
+              <span class="label">付款狀態：</span>
+              <el-tag :type="getPaymentStatusType(order.payment_status)">
+                {{ getPaymentStatusText(order.payment_status) }}
+              </el-tag>
+            </div>
             <div class="order-status" v-if="order.status">
+              <span class="label">訂單狀態：</span>
               <el-tag :type="getOrderStatusType(order.status)">
                 {{ getOrderStatusText(order.status) }}
               </el-tag>
@@ -69,22 +76,39 @@
             <div class="product-list-container">
               <h3 class="section-title">商品明細</h3>
               <div class="product-list-scrollable">
+                <!-- 更新後的商品項目 -->
                 <div
                   v-for="item in order.details"
                   :key="item.id"
                   class="product-item"
+                  :class="{ 'gift-item': item.isGift }"
                 >
                   <div class="product-image">
                     <img :src="item.image_url" :alt="item.name" />
                   </div>
                   <div class="product-info">
-                    <div class="product-name">{{ item.name }}</div>
+                    <div class="product-name">
+                      {{ item.name }}
+                      <span v-if="item.isGift" class="gift-label">
+                        (贈品)
+                      </span>
+                    </div>
                     <div class="product-price">
-                      NT${{ item.price.toFixed(2) }} x {{ item.quantity }}
+                      <template v-if="item.isGift">
+                        <span class="gift-price">活動贈品</span>
+                      </template>
+                      <template v-else>
+                        NT${{ item.price.toFixed(2) }} x {{ item.quantity }}
+                      </template>
                     </div>
                   </div>
                   <div class="product-subtotal">
-                    NT${{ (item.price * item.quantity).toFixed(2) }}
+                    <template v-if="item.isGift">
+                      <span class="gift-value">{{ item.quantity }} 件</span>
+                    </template>
+                    <template v-else>
+                      NT${{ (item.price * item.quantity).toFixed(2) }}
+                    </template>
                   </div>
                 </div>
               </div>
@@ -181,6 +205,14 @@
               >
                 <i class="el-icon-service"></i> 聯絡客服
               </el-button>
+              <el-button
+                size="small"
+                type="success"
+                v-if="!order.bank_last_five"
+                @click.stop="openBankCodeReport(order)"
+              >
+                <i class="el-icon-edit"></i> 回報末五碼
+              </el-button>
             </div>
           </div>
         </div>
@@ -213,6 +245,12 @@
       :order-info="currentServiceOrder"
       @close="customerServiceVisible = false"
     />
+
+    <bank-code-reporter
+      v-model="bankCodeReportVisible"
+      :order-info="currentReportOrder"
+      @success="handleBankCodeReportSuccess"
+    />
   </div>
 </template>
 
@@ -220,6 +258,7 @@
 import CombinedSearch from "@/components/SearchBox/CombinedSearch";
 import CustomerServiceDialog from "./components/CustomerServiceDialog";
 import ResponsivePagination from "@/components/Pagination/ResponsivePagination";
+import BankCodeReporter from "@/components/BankInfoDisplay/BankCodeReporter";
 import Services from "../services/Services.js";
 
 export default {
@@ -228,7 +267,8 @@ export default {
   components: {
     CombinedSearch,
     CustomerServiceDialog,
-    ResponsivePagination
+    ResponsivePagination,
+    BankCodeReporter
   },
 
   directives: {
@@ -275,19 +315,32 @@ export default {
       customerServiceVisible: false,
       currentServiceOrder: null,
 
+      // 末五碼回報對話框（新增）
+      bankCodeReportVisible: false,
+      currentReportOrder: null,
+
       // 搜索欄位定義
       searchFields: [
         { label: "訂單編號", prop: "orderNumber" },
         { label: "商品名稱", prop: "itemName" }
       ],
 
+      // 付款狀態定義
+      paymentStatusOptions: [
+        { value: "pending", label: "待付款", type: "warning" },
+        { value: "confirming", label: "付款確認中", type: "info" },
+        { value: "paid", label: "已付款", type: "success" },
+        { value: "refunded", label: "已退款", type: "primary" },
+        { value: "cancelled", label: "付款取消", type: "danger" }
+      ],
+
       // 訂單狀態定義
       orderStatusOptions: [
-        { value: "pending_payment", label: "待付款", type: "warning" },
-        { value: "paid", label: "已付款", type: "info" },
-        { value: "completed", label: "已完成", type: "primary" },
+        { value: "active", label: "處理中", type: "warning" },
+        { value: "completed", label: "已完成", type: "info" },
         { value: "cancelled", label: "已取消", type: "success" },
-        { value: "expired", label: "已逾期", type: "danger" }
+        { value: "expired", label: "逾期未付款", type: "primary" },
+        { value: "refunded", label: "已退款", type: "danger" }
       ]
     };
   },
@@ -382,7 +435,7 @@ export default {
             id: order.id,
             orderNumber: order.order_number || `ORD-${order.id}`,
             orderDate: order.create_time || new Date().toISOString(),
-            totalAmount: parseFloat(order.final_amount || 0),
+            totalAmount: parseFloat(order.total_amount || 0),
             totalItems: (order.items || []).reduce(
               (sum, item) => sum + (parseInt(item.quantity) || 0),
               0
@@ -401,7 +454,9 @@ export default {
             })),
             shippingNotes: order.shipping_notes || "",
             orderNotes: order.order_notes || "",
-            status: order.status || "pending",
+            payment_status: order.payment_status || "pending",
+            status: order.status || "active",
+            bank_last_five: order.bank_last_five,
             expanded: false
           };
         });
@@ -433,7 +488,7 @@ export default {
           order.created_at ||
           order.update_time ||
           order.order_date,
-        totalAmount: parseFloat(order.final_amount || order.total_amount || 0),
+        totalAmount: parseFloat(order.total_amount || 0),
         totalItems: totalItems,
         receiverName: order.receiver_name || order.customer_name || "",
         receiverPhone: order.receiver_phone || order.customer_phone || "",
@@ -450,7 +505,9 @@ export default {
         })),
         shippingNotes: order.shipping_notes || order.transport_notes || "",
         orderNotes: order.order_notes || order.notes || "",
-        status: order.status || "pending",
+        payment_status: order.payment_status || "pending",
+        status: order.status || "active",
+        bank_last_five: order.bank_last_five,
         expanded: false // 預設收合狀態
       };
     },
@@ -482,6 +539,22 @@ export default {
     },
 
     // 獲取訂單狀態文字
+    getPaymentStatusText(payment_status) {
+      const option = this.paymentStatusOptions.find(
+        opt => opt.value === payment_status
+      );
+      return option ? option.label : "未知狀態";
+    },
+
+    // 獲取訂單狀態顏色類型
+    getPaymentStatusType(payment_status) {
+      const option = this.paymentStatusOptions.find(
+        opt => opt.value === payment_status
+      );
+      return option ? option.type : "";
+    },
+
+    // 獲取訂單狀態文字
     getOrderStatusText(status) {
       const option = this.orderStatusOptions.find(opt => opt.value === status);
       return option ? option.label : "未知狀態";
@@ -505,6 +578,17 @@ export default {
       this.customerServiceVisible = true;
     },
 
+    openBankCodeReport(order) {
+      this.currentReportOrder = order;
+      this.bankCodeReportVisible = true;
+    },
+
+    // 末五碼回報成功後的處理
+    handleBankCodeReportSuccess() {
+      // 刷新訂單列表
+      this.fetchOrders();
+    },
+
     // 分頁處理
     handleSizeChange(val) {
       this.pageSize = val;
@@ -522,6 +606,7 @@ export default {
   }
 };
 </script>
+
 <style lang="scss" scoped>
 // 變量定義
 $primary-color: #1890ff;
@@ -717,6 +802,7 @@ $font-size-xl: 24px;
             text-align: right;
           }
 
+          // 商品項目樣式
           .product-item {
             display: flex;
             align-items: center;
@@ -727,17 +813,43 @@ $font-size-xl: 24px;
               border-bottom: none;
             }
 
+            // 贈品項目樣式
+            &.gift-item {
+              background-color: rgba(82, 196, 26, 0.05);
+              border-left: 2px solid $success-color;
+              padding-left: 8px;
+              margin: 4px 0;
+            }
+
             .product-image {
               width: 60px;
               height: 60px;
               margin-right: 12px;
               border-radius: 4px;
               overflow: hidden;
+              position: relative;
 
               img {
                 width: 100%;
                 height: 100%;
                 object-fit: cover;
+              }
+
+              // 贈品徽章
+              .gift-badge {
+                position: absolute;
+                top: 0;
+                right: 0;
+                background-color: $success-color;
+                color: white;
+                font-size: 11px;
+                padding: 1px 4px;
+                border-bottom-left-radius: 4px;
+
+                i {
+                  margin-right: 2px;
+                  font-size: 10px;
+                }
               }
             }
 
@@ -751,11 +863,25 @@ $font-size-xl: 24px;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
+
+                // 贈品標籤
+                .gift-label {
+                  color: $success-color;
+                  font-size: 12px;
+                  margin-left: 4px;
+                  font-weight: normal;
+                }
               }
 
               .product-price {
                 color: #606266;
                 font-size: $font-size-s;
+
+                // 贈品價格
+                .gift-price {
+                  color: #606266;
+                  font-size: $font-size-s;
+                }
               }
             }
 
@@ -764,6 +890,12 @@ $font-size-xl: 24px;
               text-align: right;
               color: $danger-color;
               font-weight: 500;
+
+              // 贈品價值顯示
+              .gift-value {
+                color: #909399;
+                font-size: 12px;
+              }
             }
           }
         }
@@ -955,6 +1087,16 @@ $font-size-xl: 24px;
               .product-name {
                 font-size: $font-size-s;
               }
+
+              // 響應式贈品徽章調整
+              .gift-badge {
+                font-size: 10px;
+                padding: 1px 4px;
+
+                i {
+                  font-size: 10px;
+                }
+              }
             }
           }
         }
@@ -1013,6 +1155,17 @@ $font-size-xl: 24px;
 
               .product-subtotal {
                 width: 80px;
+                font-size: 12px;
+
+                // 手機上的贈品價值顯示調整
+                .gift-value {
+                  font-size: 11px;
+                }
+              }
+
+              // 更小屏幕下贈品標籤調整
+              .gift-label {
+                font-size: 11px;
               }
             }
           }

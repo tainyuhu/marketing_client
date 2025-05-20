@@ -26,7 +26,6 @@
       @tab-change="handleProductTabChange"
       @page-change="handleProductPageChange"
       @product-click="viewProductDetail"
-      @add-to-cart="addToCart"
     />
 
     <!-- 活動區塊 - 使用懒加载 -->
@@ -435,6 +434,12 @@ export default {
 
     // 驗證並設置橫幅圖片 - 添加超時處理
     validateAndSetBannerImage(imageUrl) {
+      if (!imageUrl) {
+        console.error("橫幅圖片 URL 為空");
+        this.bannerImageUrl = "/static/default-banner.jpg"; // 使用默认图片
+        return;
+      }
+
       // 先设置一个低质量的占位图或缩略图（如果有）
       const placeholderUrl = imageUrl.replace("/original/", "/thumbnail/");
       if (placeholderUrl !== imageUrl) {

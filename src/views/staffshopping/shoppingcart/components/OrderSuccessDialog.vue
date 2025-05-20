@@ -2,6 +2,10 @@
   <el-dialog
     :visible.sync="visible"
     width="30%"
+    :modal-append-to-body="false"
+    :modal="false"
+    :close-on-click-modal="false"
+    :close-on-press-escape="false"
     :before-close="closeDialog"
     center
     custom-class="success-dialog"

@@ -5,6 +5,11 @@
       direction="rtl"
       :size="drawerSize"
       :show-close="true"
+      :append-to-body="true"
+      :modal-append-to-body="false"
+      :modal="false"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
       :before-close="handleClose"
       @close="onDrawerClose"
     >
@@ -109,7 +114,9 @@
                   }}</span
                 >
                 <span class="preview-quantity"
-                  >({{ cartSummary.totalQuantity }}件商品)</span
+                  >({{
+                    cartSummary.totalQuantity + cartSummary.totalGifts
+                  }}件商品)</span
                 >
               </div>
               <div class="preview-toggle">
@@ -165,6 +172,13 @@
                   <span>贈品數量:</span>
                   <span class="summary-value gift-value">
                     {{ cartSummary.totalGifts }} 件
+                  </span>
+                </div>
+                <!-- 贈品折扣 -->
+                <div v-if="cartSummary.itemDiscounts > 0" class="summary-item">
+                  <span>折扣金額:</span>
+                  <span class="summary-value gift-value">
+                    NT${{ formatPrice(cartSummary.itemDiscounts) }}
                   </span>
                 </div>
                 <div
@@ -240,14 +254,17 @@ export default {
     return {
       cartItems: [],
       cartSummary: {
-        subtotal: 0,
-        itemDiscounts: 0,
-        orderDiscounts: 0,
-        finalAmount: 0,
-        totalQuantity: 0,
-        totalGifts: 0,
-        freeShipping: false,
-        appliedRules: []
+        subtotal: 0, // 增強版總額（包含贈品價值）
+        rawSubtotal: 0, // 原始商品總額（不含贈品）
+        itemDiscounts: 0, // 商品折扣（包含贈品價值）
+        orderDiscounts: 0, // 訂單級折扣
+        finalAmount: 0, // 最終應付金額
+        totalQuantity: 0, // 商品總數量
+        totalGifts: 0, // 贈品總數
+        giftValue: 0, // 贈品總價值
+        totalDiscount: 0, // 總折扣金額（itemDiscounts + orderDiscounts）
+        freeShipping: false, // 是否免運費
+        appliedRules: [] // 適用的優惠規則
       },
       localVisible: this.visible,
       loading: true,
@@ -517,14 +534,17 @@ export default {
         await Services.clearCart();
         this.cartItems = [];
         this.cartSummary = {
-          subtotal: 0,
-          itemDiscounts: 0,
-          orderDiscounts: 0,
-          finalAmount: 0,
-          totalQuantity: 0,
-          totalGifts: 0,
-          freeShipping: false,
-          appliedRules: []
+          subtotal: 0, // 增強版總額（包含贈品價值）
+          rawSubtotal: 0, // 原始商品總額（不含贈品）
+          itemDiscounts: 0, // 商品折扣（包含贈品價值）
+          orderDiscounts: 0, // 訂單級折扣
+          finalAmount: 0, // 最終應付金額
+          totalQuantity: 0, // 商品總數量
+          totalGifts: 0, // 贈品總數
+          giftValue: 0, // 贈品總價值
+          totalDiscount: 0, // 總折扣金額（itemDiscounts + orderDiscounts）
+          freeShipping: false, // 是否免運費
+          appliedRules: [] // 適用的優惠規則
         };
         this.$message.success("購物車已清空");
         this.$emit("update:count", 0);

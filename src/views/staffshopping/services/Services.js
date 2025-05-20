@@ -386,15 +386,18 @@ export async function getOrderDetail(orderId) {
   }
 }
 
+// 回報訂單末五碼
+export async function reportBankCode(orderId, bankCode) {
+  try {
+    const response = await orderApi.reportBankCode(orderId, bankCode);
+    return extractData(response);
+  } catch (error) {
+    console.error("回報末五碼失敗:", error);
+    throw error;
+  }
+}
+
 // 👨‍💼 客服系統相關服務
-
-import {
-  customerServiceConfigApi,
-  customerServiceRequestApi,
-  customerServiceMessageApi,
-  faqApi
-} from "@/api/shop";
-
 // 獲取客服系統設定（包含營業時間計算）
 export async function getCustomerServiceConfig() {
   try {
@@ -524,6 +527,7 @@ export default {
   createOrder,
   getUserOrders,
   getOrderDetail,
+  reportBankCode,
 
   // 👨‍💼 客服系統相關
   getCustomerServiceConfig,

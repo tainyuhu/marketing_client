@@ -92,27 +92,43 @@
       <div class="cart-summary">
         <div class="summary-item">
           <span>商品總額:</span>
-          <span class="summary-value">NT${{ formatPrice(subtotal) }}</span>
+          <span class="summary-value"
+            >NT${{ formatPrice(this.cartSummary.subtotal) }}</span
+          >
         </div>
         <div class="summary-item">
           <span>商品數量:</span>
-          <span class="summary-value">{{ totalQuantity }} 件</span>
+          <span class="summary-value"
+            >{{ this.cartSummary.totalQuantity }} 件</span
+          >
         </div>
         <!-- 贈品總數 -->
-        <div v-if="totalGifts > 0" class="summary-item">
+        <div v-if="this.cartSummary.totalGifts > 0" class="summary-item">
           <span>贈品數量:</span>
-          <span class="summary-value gift-value"> {{ totalGifts }} 件 </span>
+          <span class="summary-value gift-value">
+            {{ this.cartSummary.totalGifts }} 件
+          </span>
         </div>
-        <div v-if="orderDiscounts > 0" class="summary-item discount">
+        <!-- 折扣金額 -->
+        <div v-if="this.cartSummary.itemDiscounts > 0" class="summary-item">
+          <span>折扣金額:</span>
+          <span class="summary-value gift-value">
+            NT${{ formatPrice(this.cartSummary.itemDiscounts) }}
+          </span>
+        </div>
+        <div
+          v-if="this.cartSummary.orderDiscounts > 0"
+          class="summary-item discount"
+        >
           <span>滿額折扣:</span>
           <span class="summary-value discount-value">
-            NT${{ formatPrice(orderDiscounts) }}
+            NT${{ formatPrice(this.cartSummary.orderDiscounts) }}
           </span>
         </div>
         <div class="summary-item final">
           <span>應付金額:</span>
           <span class="summary-value final-value">
-            NT${{ formatPrice(finalAmount) }}
+            NT${{ formatPrice(this.cartSummary.finalAmount) }}
           </span>
         </div>
       </div>
@@ -129,6 +145,10 @@ export default {
       type: Array,
       required: true
     },
+    cartSummary: {
+      type: Object,
+      required: true
+    },
     isMobile: {
       type: Boolean,
       default: false
@@ -140,39 +160,6 @@ export default {
     removingItems: {
       type: Object,
       default: () => ({})
-    }
-  },
-
-  computed: {
-    subtotal() {
-      return this.cartItems.reduce((total, item) => {
-        return total + item.price * item.quantity;
-      }, 0);
-    },
-
-    totalQuantity() {
-      return this.cartItems.reduce((total, item) => {
-        return total + item.quantity;
-      }, 0);
-    },
-
-    totalGifts() {
-      return this.cartItems.reduce((total, item) => {
-        if (item.gifts && item.gifts.length > 0) {
-          return total + (item.gift_quantity || 0);
-        }
-        return total;
-      }, 0);
-    },
-
-    orderDiscounts() {
-      // 這裡可以根據業務邏輯計算折扣
-      // 示例: 滿1000減100
-      return this.subtotal >= 1000 ? 100 : 0;
-    },
-
-    finalAmount() {
-      return this.subtotal - this.orderDiscounts;
     }
   },
 

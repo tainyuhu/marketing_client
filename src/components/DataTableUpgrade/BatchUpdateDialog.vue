@@ -4,6 +4,10 @@
       :title="dialogTitle"
       :visible.sync="dialogVisible"
       width="650px"
+      :append-to-body="true"
+      :modal-append-to-body="false"
+      :modal="false"
+      :close-on-press-escape="false"
       :close-on-click-modal="false"
       :before-close="handleClose"
       custom-class="list-dialog"
@@ -223,7 +227,7 @@
             ></el-input>
           </el-form-item>
 
-          <!-- 新增顯示狀態聯動提示 -->
+          <!-- 顯示狀態聯動資訊 -->
           <el-form-item
             v-if="showStatusLinkageInfo"
             class="status-linkage-info"
@@ -232,6 +236,13 @@
               <i class="el-icon-info"></i>
               <span>{{ statusLinkageMessage }}</span>
             </div>
+          </el-form-item>
+
+          <!-- 相關狀態聯動選項 -->
+          <el-form-item v-if="showRelatedStatusOption">
+            <el-checkbox v-model="form.updateRelatedStatus">
+              {{ relatedStatusUpdateMessage }}
+            </el-checkbox>
           </el-form-item>
 
           <!-- 匯出選項 -->
@@ -288,6 +299,7 @@
 <script>
 import { formatDate } from "@/utils/date";
 import { formatCurrency } from "@/utils/dataTable";
+import OrderTakingServices from "@/views/wms/ordermanagent/services/OrderTakingServices.js";
 
 export default {
   name: "BatchUpdateDialog",
@@ -306,32 +318,7 @@ export default {
     // 狀態選項
     statusOptions: {
       type: Array,
-      default: () => [
-        {
-          value: 0,
-          label: "未處理",
-          type: "warning",
-          icon: "el-icon-time"
-        },
-        {
-          value: 1,
-          label: "已處理",
-          type: "success",
-          icon: "el-icon-circle-check"
-        },
-        {
-          value: 2,
-          label: "處理中",
-          type: "info",
-          icon: "el-icon-loading"
-        },
-        {
-          value: 3,
-          label: "已取消",
-          type: "danger",
-          icon: "el-icon-circle-close"
-        }
-      ]
+      default: () => []
     },
     // 獲取項目標題的方法
     titleField: {
@@ -361,7 +348,8 @@ export default {
       form: {
         status: null,
         comment: "",
-        exportAfterUpdate: false // 新增：是否在更新後匯出
+        exportAfterUpdate: false, // 是否在更新後匯出
+        updateRelatedStatus: true // 是否更新關聯狀態
       },
       rules: {
         status: [
@@ -372,15 +360,16 @@ export default {
       batchView: true, // 預設顯示訂單數量視圖
       activeRows: [], // 當前活動行
       inactiveRows: [], // 已移除行
-      // 聯動訊息
+      // 狀態聯動訊息
       statusLinkageMessages: {
         order: {
-          1: "設為「已完成」時，相關的付款狀態將自動設為「已付款」",
-          3: "設為「已取消」時，相關的付款狀態將自動設為「已退款」"
+          confirmed: "設為「已接單」時，相關的付款狀態將自動設為「已付款」",
+          rejected: "設為「已拒絕」時，您可以選擇是否將付款狀態設為「付款取消」"
         },
         payment: {
-          1: "設為「已付款」時，如果接單狀態不是「已取消」，將自動設為「已完成」",
-          3: "設為「已退款」時，相關的接單狀態將自動設為「已取消」"
+          paid: "設為「已付款」時，您可以選擇是否將接單狀態設為「已接單」",
+          refunded: "設為「已退款」時，相關的接單狀態將自動設為「已拒絕」",
+          cancelled: "設為「付款取消」時，相關的接單狀態將自動設為「已拒絕」"
         }
       }
     };
@@ -439,19 +428,24 @@ export default {
       }
 
       // 以下情況需要填寫備註
-      // 1. 已完成 -> 未處理/已取消 需要備註
+      // 1. 已接單 -> 未接單/已拒絕 需要備註
       if (
-        this.currentStatus === 1 &&
-        (this.form.status === 0 || this.form.status === 3)
+        this.currentStatus === "confirmed" &&
+        (this.form.status === "unconfirmed" || this.form.status === "rejected")
       ) {
         return true;
       }
 
-      // 2. 已取消 -> 未處理/已完成 需要備註
+      // 2. 已拒絕 -> 未接單/已接單 需要備註
       if (
-        this.currentStatus === 3 &&
-        (this.form.status === 0 || this.form.status === 1)
+        this.currentStatus === "rejected" &&
+        (this.form.status === "unconfirmed" || this.form.status === "confirmed")
       ) {
+        return true;
+      }
+
+      // 3. 已付款 -> 其他狀態 需要備註
+      if (this.currentStatus === "paid" && this.form.status !== "paid") {
         return true;
       }
 
@@ -484,9 +478,9 @@ export default {
 
       this.activeRows.forEach(row => {
         // 處理主訂單行
-        if (row.details && row.details.length) {
+        if (row.items && row.items.length) {
           let totalQuantity = 0;
-          row.details.forEach(detail => {
+          row.items.forEach(detail => {
             totalQuantity += detail.quantity || 0;
           });
 
@@ -512,7 +506,7 @@ export default {
       // 對於接單狀態的聯動提示
       if (
         this.updateType === "order" &&
-        (this.form.status === 1 || this.form.status === 3)
+        (this.form.status === "confirmed" || this.form.status === "rejected")
       ) {
         return true;
       }
@@ -520,7 +514,9 @@ export default {
       // 對於付款狀態的聯動提示
       if (
         this.updateType === "payment" &&
-        (this.form.status === 1 || this.form.status === 3)
+        (this.form.status === "paid" ||
+          this.form.status === "refunded" ||
+          this.form.status === "cancelled")
       ) {
         return true;
       }
@@ -534,6 +530,51 @@ export default {
       return (
         this.statusLinkageMessages[this.updateType][this.form.status] || ""
       );
+    },
+
+    // 是否顯示相關狀態選項
+    showRelatedStatusOption() {
+      if (!this.form.status || this.form.status === this.currentStatus) {
+        return false;
+      }
+
+      // 接單狀態為「已接單」時，不提供選項，強制更新為「已付款」
+      if (this.updateType === "order" && this.form.status === "confirmed") {
+        return false;
+      }
+
+      // 付款狀態為「已退款」或「付款取消」時，不提供選項，強制更新為「已拒絕」
+      if (
+        this.updateType === "payment" &&
+        (this.form.status === "refunded" || this.form.status === "cancelled")
+      ) {
+        return false;
+      }
+
+      // 接單狀態為「已拒絕」時，提供選項
+      if (this.updateType === "order" && this.form.status === "rejected") {
+        return true;
+      }
+
+      // 付款狀態為「已付款」時，提供選項
+      if (this.updateType === "payment" && this.form.status === "paid") {
+        return true;
+      }
+
+      return false;
+    },
+
+    // 相關狀態更新消息
+    relatedStatusUpdateMessage() {
+      if (this.updateType === "order" && this.form.status === "rejected") {
+        return "同時將付款狀態更新為「付款取消」";
+      }
+
+      if (this.updateType === "payment" && this.form.status === "paid") {
+        return "同時將接單狀態更新為「已接單」";
+      }
+
+      return "";
     }
   },
 
@@ -648,7 +689,8 @@ export default {
       this.form = {
         status: this.currentStatus,
         comment: "",
-        exportAfterUpdate: false // 重置匯出選項
+        exportAfterUpdate: false, // 重置匯出選項
+        updateRelatedStatus: true // 重置關聯狀態更新選項
       };
       if (this.$refs.updateForm) {
         this.$refs.updateForm.clearValidate();
@@ -703,7 +745,8 @@ export default {
     },
 
     // 處理提交
-    handleSubmit() {
+    // 處理提交
+    async handleSubmit() {
       // 檢查是否有選中項目
       if (this.activeRows.length === 0) {
         this.$emit("display-message", {
@@ -731,7 +774,7 @@ export default {
         return;
       }
 
-      this.$refs.updateForm.validate(valid => {
+      this.$refs.updateForm.validate(async valid => {
         if (!valid) {
           return false;
         }
@@ -747,41 +790,114 @@ export default {
 
         this.submitLoading = true;
 
-        // 處理更新數據
-        const processedRows = this.activeRows.map(row => {
-          // 創建處理後的行數據，包含更新信息
-          return {
-            ...row,
-            originalStatus: row[this.statusField], // 保存原始狀態
-            [this.statusField]: this.form.status, // 更新後的狀態
-            statusUpdateTime: new Date(),
-            statusUpdateComment: this.form.comment
-          };
-        });
-
-        // 模擬API調用延遲
-        setTimeout(() => {
-          // 更新完成結果
-          const updateResult = {
+        try {
+          // 構建API請求的payload
+          const payload = {
+            order_ids: this.activeRows.map(row => row.id),
             status: this.form.status,
-            comment: this.form.comment,
-            rows: processedRows,
-            orderQuantityData: this.orderQuantityData,
-            removedRows: this.inactiveRows,
-            updateType: this.updateType, // 添加更新類型
-            exportAfterUpdate: this.form.exportAfterUpdate // 是否要匯出
+            update_type: this.updateType, // 'order'或'payment'
+            comment: this.form.comment || "",
+            update_related_status:
+              this.form.updateRelatedStatus !== undefined
+                ? this.form.updateRelatedStatus
+                : true
           };
 
-          // 發出更新事件
-          this.$emit("update", updateResult);
+          // 調用批量更新API
+          const response = await OrderTakingServices.batchUpdateOrderStatus(
+            payload
+          );
 
-          this.submitLoading = false;
+          if (response.success) {
+            // 處理成功情況
 
-          // 如果不需要匯出，就直接關閉對話框
-          if (!this.form.exportAfterUpdate) {
-            this.dialogVisible = false;
+            // 處理更新後的行數據
+            const processedRows = this.activeRows.map(row => {
+              // 創建處理後的行數據，包含更新信息
+              return {
+                ...row,
+                originalStatus: row[this.statusField], // 保存原始狀態
+                [this.statusField]: this.form.status, // 更新後的狀態
+                statusUpdateTime: new Date(),
+                statusUpdateComment: this.form.comment
+              };
+            });
+
+            // 更新完成結果
+            const updateResult = {
+              status: this.form.status,
+              comment: this.form.comment,
+              rows: processedRows,
+              orderQuantityData: this.orderQuantityData,
+              removedRows: this.inactiveRows,
+              updateType: this.updateType, // 添加更新類型
+              exportAfterUpdate: this.form.exportAfterUpdate, // 是否要匯出
+              updateRelatedStatus: this.form.updateRelatedStatus, // 是否更新關聯狀態
+              shouldRefreshData: true, // 通知父組件刷新數據
+              apiResponse: response.data // 添加API響應數據
+            };
+
+            // 生成成功消息
+            let message = `已成功更新${processedRows.length}條${
+              this.updateType === "order" ? "接單" : "付款"
+            }狀態`;
+
+            // 添加狀態聯動提示
+            if (this.updateType === "order") {
+              if (this.form.status === "confirmed") {
+                message += "，並自動更新相關付款狀態為已付款";
+              } else if (
+                this.form.status === "rejected" &&
+                this.form.updateRelatedStatus
+              ) {
+                message += "，並自動更新相關付款狀態為付款取消";
+              }
+            } else if (this.updateType === "payment") {
+              if (
+                this.form.status === "paid" &&
+                this.form.updateRelatedStatus
+              ) {
+                message += "，並自動更新相關接單狀態為已接單";
+              } else if (
+                this.form.status === "refunded" ||
+                this.form.status === "cancelled"
+              ) {
+                message += "，並自動更新相關接單狀態為已拒絕";
+              }
+            }
+
+            // 顯示成功消息
+            this.$emit("display-message", {
+              type: "success",
+              message: message
+            });
+
+            // 發出更新事件
+            this.$emit("update", updateResult);
+
+            // 如果不需要匯出，就直接關閉對話框
+            if (!this.form.exportAfterUpdate) {
+              this.dialogVisible = false;
+            } else {
+              // 如果需要匯出，發送顯示匯出對話框的事件
+              this.$emit("show-export-dialog", updateResult);
+            }
+          } else {
+            // 處理失敗情況
+            this.$emit("display-message", {
+              type: "error",
+              message: response.message || "批量更新失敗，請稍後再試"
+            });
           }
-        }, 500);
+        } catch (error) {
+          console.error("批量更新處理出錯:", error);
+          this.$emit("display-message", {
+            type: "error",
+            message: "操作失敗，請稍後再試"
+          });
+        } finally {
+          this.submitLoading = false;
+        }
       });
     },
 

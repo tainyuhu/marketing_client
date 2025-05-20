@@ -5,7 +5,7 @@
       <el-timeline-item
         v-for="(remark, index) in remarks"
         :key="remark.id || index"
-        :timestamp="formatDate(remark.createdAt)"
+        :timestamp="formatDate(remark.create_time)"
         :type="getTimelineItemType(remark)"
         :color="getTimelineItemColor(remark)"
         size="large"
@@ -13,13 +13,13 @@
         <div
           class="timeline-card"
           :class="{
-            'is-important': remark.isImportant,
-            'is-pinned': remark.isPinned
+            'is-important': remark.is_important,
+            'is-pinned': remark.is_pinned
           }"
         >
           <div class="timeline-header">
             <div class="header-main">
-              <span class="author">{{ remark.createdBy }}</span>
+              <span class="author">{{ remark.created_by_name }}</span>
               <el-tag size="mini" :type="getRemarkTagType(remark)" round>
                 {{ getRemarkTagText(remark) }}
               </el-tag>
@@ -34,7 +34,7 @@
               >
                 <i class="el-icon-more"></i>
                 <el-dropdown-menu slot="dropdown">
-                  <el-dropdown-item command="pin" v-if="!remark.isPinned">
+                  <el-dropdown-item command="pin" v-if="!remark.is_pinned">
                     <i class="el-icon-top"></i> 固定備註
                   </el-dropdown-item>
                   <el-dropdown-item command="unpin" v-else>
@@ -42,7 +42,7 @@
                   </el-dropdown-item>
                   <el-dropdown-item
                     command="important"
-                    v-if="!remark.isImportant"
+                    v-if="!remark.is_important"
                   >
                     <i class="el-icon-star-on"></i> 標記為重要
                   </el-dropdown-item>
@@ -77,9 +77,6 @@
         <i class="el-icon-chat-line-square"></i>
       </div>
       <div class="empty-text">暫無備註記錄</div>
-      <el-button type="primary" round @click="$emit('add-remark')">
-        添加第一條備註
-      </el-button>
     </div>
 
     <!-- 加載更多 -->
@@ -133,29 +130,29 @@ export default {
 
     // 根據備註類型設置時間線項目類型
     getTimelineItemType(remark) {
-      if (remark.isImportant) return "danger";
-      if (remark.isPinned) return "warning";
+      if (remark.is_important) return "danger";
+      if (remark.is_pinned) return "warning";
       return "primary";
     },
 
     // 根據備註類型設置時間線項目顏色
     getTimelineItemColor(remark) {
-      if (remark.isImportant) return "#FF4D4F";
-      if (remark.isPinned) return "#FAAD14";
+      if (remark.is_important) return "#FF4D4F";
+      if (remark.is_pinned) return "#FAAD14";
       return "#1890FF";
     },
 
     // 獲取備註標籤類型
     getRemarkTagType(remark) {
-      if (remark.isImportant) return "danger";
-      if (remark.isPinned) return "warning";
+      if (remark.is_important) return "danger";
+      if (remark.is_pinned) return "warning";
       return "info";
     },
 
     // 獲取備註標籤文字
     getRemarkTagText(remark) {
-      if (remark.isImportant) return "重要";
-      if (remark.isPinned) return "固定";
+      if (remark.is_important) return "重要";
+      if (remark.is_pinned) return "固定";
       return "一般";
     },
 
@@ -163,16 +160,16 @@ export default {
     handleRemarkAction(action, remark) {
       switch (action) {
         case "pin":
-          this.$emit("update-remark", { ...remark, isPinned: true });
+          this.$emit("update-remark", { ...remark, is_pinned: true });
           break;
         case "unpin":
-          this.$emit("update-remark", { ...remark, isPinned: false });
+          this.$emit("update-remark", { ...remark, is_pinned: false });
           break;
         case "important":
-          this.$emit("update-remark", { ...remark, isImportant: true });
+          this.$emit("update-remark", { ...remark, is_important: true });
           break;
         case "unimportant":
-          this.$emit("update-remark", { ...remark, isImportant: false });
+          this.$emit("update-remark", { ...remark, is_important: false });
           break;
         case "delete":
           this.$emit("delete-remark", remark);

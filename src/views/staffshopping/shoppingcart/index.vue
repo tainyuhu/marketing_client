@@ -47,6 +47,7 @@
         <cart-confirmation
           v-else
           :cart-items="cartItems"
+          :cart-summary="this.cartSummary"
           :is-mobile="isMobile"
           :updating-items="updatingItems"
           :removing-items="removingItems"
@@ -77,10 +78,12 @@
       <div v-show="currentStep === 3" class="step-container">
         <order-summary
           :cart-items="this.cartItems"
+          :cart-summary="this.cartSummary"
           :address="shippingAddress"
           :payment-method="paymentMethod"
           :total-amount="totalAmount"
           :is-mobile="isMobile"
+          @update-agreement="updateAgreementStatus"
         />
       </div>
     </div>
@@ -91,10 +94,6 @@
         <div class="total-amount">
           <span>訂單總額:</span>
           <span class="amount">NT${{ formatPrice(totalAmount) }}</span>
-        </div>
-        <div class="total-items">
-          <span>商品數量:</span>
-          <span>{{ totalQuantity }} 件</span>
         </div>
       </div>
 
@@ -164,6 +163,7 @@ export default {
 
   data() {
     return {
+      agreedToTerms: false,
       currentStep: 0,
       cartItems: [],
       cartSummary: {
@@ -249,6 +249,11 @@ export default {
         return !name || !phone || !address;
       }
 
+      // 第四步（訂單確認）：未同意條款時禁用提交按鈕
+      if (this.currentStep === 3 && !this.agreedToTerms) {
+        return true;
+      }
+
       return false;
     }
   },
@@ -282,6 +287,9 @@ export default {
   },
 
   methods: {
+    updateAgreementStatus(status) {
+      this.agreedToTerms = status;
+    },
     // 處理窗口大小變化
     handleResize() {
       this.windowWidth = window.innerWidth;
@@ -537,6 +545,15 @@ export default {
     // 進入下一步
     nextStep() {
       if (this.currentStep === 3) {
+        // 最後一步，提交訂單前檢查是否同意條款
+        if (!this.agreedToTerms) {
+          Message({
+            message: "請先閱讀並同意服務條款才能提交訂單",
+            type: "warning",
+            duration: 2000
+          });
+          return;
+        }
         // 最後一步，提交訂單
         this.submitOrder();
       } else {
@@ -592,9 +609,18 @@ export default {
             quantity: item.quantity,
             price: item.price,
             original_price: item.original_price || item.price,
-            name: item.name || item.product_name,
-            gifts: item.gifts || []
+            name: item.name || item.product_name
           })),
+
+          gift_items: this.cartSummary.giftItems.map(item => ({
+            product_id: item.product_id,
+            activity: item.activity_id || null,
+            product_name: item.product_name,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            total_value: item.total_value
+          })),
+
           shipping_info: {
             name: this.shippingAddress.name,
             phone: this.shippingAddress.phone,
@@ -695,8 +721,7 @@ export default {
     // 查看訂單詳情
     viewOrderDetails() {
       this.orderSuccessDialogVisible = false;
-      // 跳轉到訂單詳情頁，實際項目中替換為真實路由
-      this.$router.push(`/my-orders/${this.orderNumber}`);
+      this.$router.push(`/staffshopping/orderlist`);
     },
 
     // 返回首頁
