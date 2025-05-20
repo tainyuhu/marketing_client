@@ -141,11 +141,9 @@
             <div class="amount-value">NT${{ formatPrice(subtotal) }}</div>
           </div>
           <!-- 顯示優惠折扣（如果有） -->
-          <div v-if="orderDiscounts > 0" class="amount-row discount">
+          <div v-if="totalDiscount > 0" class="amount-row discount">
             <div class="amount-label">訂單折扣</div>
-            <div class="amount-value">
-              -NT${{ formatPrice(orderDiscounts) }}
-            </div>
+            <div class="amount-value">NT${{ formatPrice(totalDiscount) }}</div>
           </div>
           <div class="amount-row">
             <div class="amount-label">運費</div>
@@ -204,6 +202,10 @@ export default {
       type: Array,
       required: true
     },
+    cartSummary: {
+      type: Object,
+      required: true
+    },
     address: {
       type: Object,
       required: true
@@ -231,7 +233,7 @@ export default {
       agreedToTerms: false,
       shippingFee: 0,
       appliedRules: [],
-      orderDiscounts: 0
+      totalDiscount: 0
     };
   },
 
@@ -247,7 +249,7 @@ export default {
     finalAmount() {
       return (
         this.totalAmount ||
-        this.subtotal + this.shippingFee - this.orderDiscounts
+        this.subtotal + this.shippingFee - this.totalDiscount
       );
     },
 
@@ -303,43 +305,17 @@ export default {
 
     // 從購物車數據中提取摘要信息
     extractCartSummary() {
-      // 從傳入的totalAmount中獲取最終金額
-      // 檢查是否有購物車摘要信息
-      const foundCartItem = this.cartItems.find(item => item.summary);
-
-      if (foundCartItem && foundCartItem.summary) {
-        // 如果找到摘要數據，使用它
-        const summary = foundCartItem.summary;
-        this.orderDiscounts = summary.orderDiscounts || 0;
-        this.shippingFee = summary.shippingFee || 0;
-        this.appliedRules = summary.appliedRules || [];
-      } else {
-        // 從API響應中看到的實際數據結構
-        // 假設全館滿2000折100，從JSON數據中看到
-        this.orderDiscounts = 100; // 固定值，根據實際API調整
-        this.shippingFee = 0; // 根據實際情況設置
-
-        // 使用API返回的規則
-        this.appliedRules = [
-          {
-            name: "白蝦買3送1優惠 (贈送相同商品)",
-            type: "buy_gift"
-          },
-          {
-            name: "全館滿2000折100",
-            type: "order_discount",
-            discount: 100
-          }
-        ];
-      }
+      // 如果找到摘要數據，使用它
+      const summary = this.cartSummary;
+      this.totalDiscount = summary.totalDiscount || 0;
+      this.shippingFee = summary.shippingFee || 0;
+      this.appliedRules = summary.appliedRules || [];
     },
 
     // 獲取支付方式名稱
     getPaymentMethodName(method) {
       const methodMap = {
-        bankTransfer: "銀行轉帳",
-        creditCard: "信用卡支付",
-        linePay: "LINE Pay"
+        bankTransfer: "銀行轉帳"
       };
 
       return methodMap[method] || "銀行轉帳";

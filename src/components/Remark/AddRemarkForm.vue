@@ -41,10 +41,10 @@
       </div>
 
       <div class="remark-options">
-        <el-checkbox v-model="remarkForm.isPinned">
+        <el-checkbox v-model="remarkForm.is_pinned">
           <i class="el-icon-top"></i> 固定此備註
         </el-checkbox>
-        <el-checkbox v-model="remarkForm.isImportant">
+        <el-checkbox v-model="remarkForm.is_important">
           <i class="el-icon-star-on"></i> 標記為重要
         </el-checkbox>
       </div>
@@ -81,8 +81,8 @@ export default {
       // 表單數據
       remarkForm: {
         content: "",
-        isPinned: false,
-        isImportant: false
+        is_pinned: false,
+        is_important: false
       },
 
       // 表單驗證規則
@@ -112,8 +112,8 @@ export default {
         // 準備要提交的數據
         const remarkData = {
           content: this.remarkForm.content,
-          isPinned: this.remarkForm.isPinned,
-          isImportant: this.remarkForm.isImportant,
+          is_pinned: this.remarkForm.is_pinned,
+          is_important: this.remarkForm.is_important,
           files: this.fileList.map(file => file.raw)
         };
 
@@ -157,8 +157,8 @@ export default {
     resetForm() {
       this.remarkForm = {
         content: "",
-        isPinned: false,
-        isImportant: false
+        is_pinned: false,
+        is_important: false
       };
       this.fileList = [];
 

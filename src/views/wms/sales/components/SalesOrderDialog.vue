@@ -2,492 +2,558 @@
   <el-dialog
     :title="dialogTitle"
     :visible.sync="dialogVisible"
-    width="650px"
+    width="70%"
+    :append-to-body="true"
+    :modal-append-to-body="false"
+    :modal="false"
     :close-on-click-modal="false"
-    custom-class="list-dialog"
-    @closed="handleClosed"
+    :close-on-press-escape="false"
+    @close="handleDialogClose"
+    custom-class="modern-dialog"
   >
-    <div class="dialog-content">
-      <!-- 訂單資訊卡片 -->
-      <div class="order-card">
-        <div class="order-number">
-          <div class="badge">訂單單號:</div>
-          <div class="number">{{ formData.orderNumber }}</div>
-        </div>
-
-        <div class="order-info">
-          <div class="info-row">
-            <div class="info-item">
-              <i class="el-icon-user"></i>
-              <span>客戶: {{ formData.customerName }}</span>
-            </div>
-            <div class="info-item">
-              <i class="el-icon-date"></i>
-              <span>出貨日期: {{ formatDate(formData.shipmentDate) }}</span>
-            </div>
-          </div>
-          <div class="status-tag">
-            <span class="status-label">狀態:</span>
-            <el-tag :type="getStatusType(formData.status)" size="medium">
-              {{ getStatusLabel(formData.status) }}
-            </el-tag>
-          </div>
-        </div>
-      </div>
-
-      <!-- 表單區域 -->
+    <div v-loading="loading" class="order-dialog-content">
+      <!-- 客戶資訊區域 -->
+      <el-divider content-position="left">
+        <i class="el-icon-user-solid"></i> 客戶資訊
+      </el-divider>
       <el-form
-        ref="form"
-        :model="formData"
+        ref="orderForm"
+        :model="form"
         :rules="rules"
-        label-position="top"
+        label-width="120px"
         size="medium"
-        class="modern-form"
       >
-        <div class="section-title">
-          <i class="el-icon-phone-outline"></i>
-          <span>聯絡資訊</span>
-        </div>
-
         <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="聯絡人" prop="contactPerson">
-              <el-input
-                v-model="formData.contactPerson"
-                placeholder="請輸入聯絡人姓名"
-                maxlength="30"
-                show-word-limit
-                prefix-icon="el-icon-user"
-              ></el-input>
+          <el-col :span="12" :xs="24">
+            <el-form-item label="訂單編號" prop="order_number">
+              <el-input v-model="form.order_number" disabled></el-input>
             </el-form-item>
           </el-col>
-
-          <el-col :span="12">
-            <el-form-item label="聯絡電話" prop="contactPhone">
-              <div class="phone-inputs">
-                <el-input
-                  v-model="formData.contactPhone"
-                  placeholder="請輸入聯絡電話"
-                  maxlength="20"
-                  prefix-icon="el-icon-phone"
-                ></el-input>
-                <el-input
-                  v-model="formData.extension"
-                  placeholder="分機"
-                  maxlength="10"
-                  class="extension-input"
-                ></el-input>
-              </div>
+          <el-col :span="12" :xs="24">
+            <el-form-item label="收件人" prop="receiver_name">
+              <el-input v-model="form.receiver_name"></el-input>
             </el-form-item>
           </el-col>
         </el-row>
-
-        <el-form-item label="送貨地址" prop="shippingAddress">
-          <el-input
-            v-model="formData.shippingAddress"
-            placeholder="請輸入完整送貨地址"
-            type="textarea"
-            :rows="2"
-            maxlength="200"
-            show-word-limit
-            prefix-icon="el-icon-location"
-          ></el-input>
-        </el-form-item>
-
-        <el-form-item label="備註" prop="notes">
-          <el-input
-            v-model="formData.notes"
-            placeholder="可輸入備註說明"
-            type="textarea"
-            :rows="2"
-            maxlength="500"
-            show-word-limit
-            prefix-icon="el-icon-document"
-          ></el-input>
-        </el-form-item>
+        <el-row :gutter="20">
+          <el-col :span="12" :xs="24">
+            <el-form-item
+              label="收件電話"
+              prop="receiver_phone"
+              class="phone-input-container"
+            >
+              <el-input v-model="form.receiver_phone">
+                <!-- <template slot="append">
+                  <el-input
+                    v-model="form.extension"
+                    placeholder="分機"
+                    style="width: 60px"
+                  ></el-input>
+                </template> -->
+              </el-input>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="24" :xs="24">
+            <el-form-item label="收件地址" prop="receiver_address">
+              <el-input
+                v-model="form.receiver_address"
+                placeholder="請輸入收件地址"
+                type="textarea"
+                :rows="2"
+                :autosize="{ minRows: 2, maxRows: 4 }"
+              ></el-input>
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
     </div>
 
-    <!-- 對話框底部按鈕 -->
     <span slot="footer" class="dialog-footer">
-      <el-button plain @click="dialogVisible = false">取消</el-button>
-      <el-button type="primary" @click="submitForm" :loading="submitting">
-        儲存變更
+      <el-button @click="handleDialogClose" size="medium">取消</el-button>
+      <el-button
+        type="primary"
+        @click="handleSubmit"
+        :loading="submitting"
+        size="medium"
+      >
+        <i class="el-icon-check"></i> 確認修改
       </el-button>
     </span>
   </el-dialog>
 </template>
 
 <script>
-import { formatDate } from "@/utils/date";
-import { statusOptions } from "@/constants/tableColumns";
+import OrderTakingService from "../../ordermanagent/services/OrderTakingServices.js";
+import { MessageBox } from "element-ui";
 
 export default {
-  name: "SalesOrderDialog",
+  name: "OrderTakingDialog",
   props: {
     visible: {
       type: Boolean,
       default: false
     },
-    data: {
+    orderData: {
       type: Object,
       default: () => ({})
     }
   },
   data() {
     return {
+      formChanged: false, // 追蹤表單是否有變更
+      originalFormData: {}, // 保存原始表單數據用於比較
       dialogVisible: false,
+      loading: false,
       submitting: false,
-      formData: {
-        id: null,
-        orderNumber: "",
-        customerName: "",
-        shipmentDate: "",
-        status: "",
-        contactPerson: "",
-        contactPhone: "",
-        extension: "",
-        shippingAddress: "",
-        notes: ""
+      form: {
+        id: "",
+        order_number: "",
+        receiver_name: "",
+        receiver_phone: "",
+        receiver_address: ""
       },
       // 表單驗證規則
       rules: {
-        contactPerson: [
-          { required: true, message: "請輸入聯絡人姓名", trigger: "blur" },
-          { max: 30, message: "聯絡人姓名不能超過30個字符", trigger: "blur" }
+        receiver_name: [
+          { required: true, message: "請輸入收件人姓名", trigger: "blur" }
         ],
-        contactPhone: [
-          { required: true, message: "請輸入聯絡電話", trigger: "blur" },
-          { max: 20, message: "聯絡電話不能超過20個字符", trigger: "blur" },
+        receiver_phone: [
           {
-            pattern: /^[0-9-+()（）]+$/,
-            message: "聯絡電話格式不正確",
+            pattern: /^\d{8,10}$/,
+            message: "請輸入有效的電話號碼",
             trigger: "blur"
           }
         ],
-        shippingAddress: [
-          { required: true, message: "請輸入送貨地址", trigger: "blur" },
-          { max: 200, message: "送貨地址不能超過200個字符", trigger: "blur" }
-        ],
-        notes: [{ max: 500, message: "備註不能超過500個字符", trigger: "blur" }]
-      },
-      // 狀態選項
-      statusOptions: statusOptions.salesStatusOptions
+        receiver_address: [
+          { required: true, message: "請輸入收件地址", trigger: "blur" }
+        ]
+      }
     };
   },
   computed: {
     dialogTitle() {
-      return this.formData.id ? `編輯訂單單` : "新增訂單單";
+      return `編輯單據 - ${this.form.order_number || ""}`;
     }
   },
   watch: {
-    visible(val) {
-      this.dialogVisible = val;
+    visible(newVal) {
+      this.dialogVisible = newVal;
+      if (newVal) {
+        this.initFormData();
+      }
     },
-    dialogVisible(val) {
-      this.$emit("update:visible", val);
-    },
-    data: {
-      handler(val) {
-        if (val) {
-          this.formData = { ...this.getDefaultFormData(), ...val };
+    orderData: {
+      handler(newVal) {
+        if (this.dialogVisible && newVal) {
+          this.initFormData();
         }
       },
-      immediate: true
+      deep: true
+    },
+    // 監聽表單變化
+    form: {
+      handler(newVal) {
+        if (this.dialogVisible && this.originalFormData.id) {
+          // 檢查關鍵字段是否有變化
+          this.formChanged =
+            this.originalFormData.receiver_name !== newVal.receiver_name ||
+            this.originalFormData.receiver_phone !== newVal.receiver_phone ||
+            this.originalFormData.receiver_address !== newVal.receiver_address;
+        }
+      },
+      deep: true
     }
   },
   methods: {
-    formatDate,
-    // 獲取狀態標籤樣式
-    getStatusType(status) {
-      const statusInfo = this.statusOptions.find(
-        option => option.value === status
-      );
-      return statusInfo ? statusInfo.type : "info";
+    // 初始化表單數據
+    initFormData() {
+      this.loading = true;
+      try {
+        // 確保 orderData 存在且有有效數據
+        if (this.orderData && typeof this.orderData === "object") {
+          // 複製訂單數據到表單
+          this.form = {
+            id: this.orderData.id || "",
+            order_number: this.orderData.order_number || "",
+            receiver_name: this.orderData.receiver_name || "",
+            receiver_phone: this.orderData.receiver_phone || "",
+            receiver_address: this.orderData.receiver_address || ""
+          };
+
+          // 保存原始數據的副本用於比較
+          this.originalFormData = { ...this.form };
+        } else {
+          // 如果 orderData 為空，重置表單
+          this.form = {
+            id: "",
+            order_number: "",
+            receiver_name: "",
+            receiver_phone: "",
+            receiver_address: ""
+          };
+          this.originalFormData = { ...this.form };
+        }
+
+        // 重置表單變更標記
+        this.formChanged = false;
+      } catch (error) {
+        console.error("初始化表單數據失敗:", error);
+        this.$message.error("初始化表單數據失敗");
+      } finally {
+        this.loading = false;
+      }
     },
-    // 獲取狀態顯示文字
-    getStatusLabel(status) {
-      const statusInfo = this.statusOptions.find(
-        option => option.value === status
-      );
-      return statusInfo ? statusInfo.label : status;
-    },
-    // 獲取默認表單數據
-    getDefaultFormData() {
-      return {
-        id: null,
-        orderNumber: "",
-        customerName: "",
-        shipmentDate: new Date(),
-        status: "pending",
-        contactPerson: "",
-        contactPhone: "",
-        extension: "",
-        shippingAddress: "",
-        notes: ""
-      };
-    },
-    // 提交表單
-    submitForm() {
-      this.$refs.form.validate(valid => {
+
+    // 提交表單 - 使用 MessageBox 替代 $confirm
+    async handleSubmit() {
+      // 表單驗證
+      this.$refs.orderForm.validate(async valid => {
         if (!valid) {
-          this.$message({
-            message: "請檢查並修正表單中的錯誤",
-            type: "warning",
-            duration: 2000
-          });
+          this.$message.error("請檢查表單內容，確保填寫正確");
           return;
         }
 
-        this.submitting = true;
+        // 檢查是否有重要資料變更
+        const hasImportantChanges =
+          this.originalFormData.receiver_name !== this.form.receiver_name ||
+          this.originalFormData.receiver_phone !== this.form.receiver_phone ||
+          this.originalFormData.receiver_address !== this.form.receiver_address;
 
-        // 只保留可編輯的字段，避免修改其他數據
-        const editableData = {
-          id: this.formData.id,
-          orderNumber: this.formData.orderNumber,
-          contactPerson: this.formData.contactPerson,
-          contactPhone: this.formData.contactPhone,
-          extension: this.formData.extension,
-          shippingAddress: this.formData.shippingAddress,
-          notes: this.formData.notes
-        };
+        // 如果有重要資料變更，顯示確認對話框
+        if (hasImportantChanges) {
+          // 準備顯示的變更內容
+          const changes = [];
 
-        this.$emit("save", editableData);
+          if (this.originalFormData.receiver_name !== this.form.receiver_name) {
+            changes.push(
+              `收件人: ${this.originalFormData.receiver_name} → ${
+                this.form.receiver_name
+              }`
+            );
+          }
 
-        // 注意：實際保存操作應該在父組件中完成，並在成功後關閉對話框
-        // 這裡不會自動關閉對話框，而是等待父組件中的操作完成後再關閉
-        this.submitting = false;
+          if (
+            this.originalFormData.receiver_phone !== this.form.receiver_phone
+          ) {
+            changes.push(
+              `收件電話: ${this.originalFormData.receiver_phone} → ${
+                this.form.receiver_phone
+              }`
+            );
+          }
+
+          if (
+            this.originalFormData.receiver_address !==
+            this.form.receiver_address
+          ) {
+            changes.push(
+              `收件地址: ${this.originalFormData.receiver_address} → ${
+                this.form.receiver_address
+              }`
+            );
+          }
+
+          // 使用 MessageBox.confirm 而不是 this.$confirm
+          MessageBox.confirm(
+            `<p>您即將修改以下重要資料：</p><ul>${changes
+              .map(c => `<li>${c}</li>`)
+              .join("")}</ul><p>確定要進行這些變更嗎？</p>`,
+            "確認修改",
+            {
+              modal: false,
+              confirmButtonText: "確定修改",
+              cancelButtonText: "取消",
+              type: "warning",
+              dangerouslyUseHTMLString: true,
+              distinguishCancelAndClose: true, // 區分取消按鈕與關閉圖標
+              callback: action => {
+                if (action === "confirm") {
+                  // 用戶確認，執行實際提交
+                  this.submitChanges();
+                } else {
+                  // 用戶取消提交，不執行任何操作
+                  this.$message.info("已取消修改");
+                }
+              }
+            }
+          );
+        } else {
+          // 沒有重要資料變更，直接提交
+          this.submitChanges();
+        }
       });
     },
-    // 對話框關閉時重置表單
-    handleClosed() {
-      this.$refs.form.resetFields();
-      this.formData = this.getDefaultFormData();
+
+    // 實際的提交邏輯
+    async submitChanges() {
+      this.submitting = true;
+      try {
+        // 準備要更新的數據（僅包含需要更新的字段）
+        const patchData = {
+          receiver_name: this.form.receiver_name,
+          receiver_phone: this.form.receiver_phone,
+          receiver_address: this.form.receiver_address
+        };
+
+        console.log("提交的數據:", patchData);
+
+        // 使用patchOrderInfo函數進行部分更新
+        const response = await OrderTakingService.patchOrderInfo(
+          this.form.id,
+          patchData
+        );
+
+        console.log("API回應:", response);
+
+        if (response.success) {
+          this.$message.success(response.message || "訂單更新成功");
+
+          // 通知父組件更新成功
+          this.$emit("update-success", {
+            ...this.orderData, // 原始訂單數據
+            receiver_name: this.form.receiver_name,
+            receiver_phone: this.form.receiver_phone,
+            receiver_address: this.form.receiver_address
+          });
+
+          // 關閉對話框
+          this.resetAndClose();
+        } else {
+          this.$message.error(response.message || "更新失敗");
+        }
+      } catch (error) {
+        console.error("更新訂單失敗:", error);
+        this.$message.error("更新訂單失敗: " + (error.message || "未知錯誤"));
+      } finally {
+        this.submitting = false;
+      }
+    },
+
+    // 關閉對話框 - 使用 MessageBox 替代 $confirm
+    handleDialogClose() {
+      // 如果表單已變更但未提交，顯示確認對話框
+      if (this.formChanged) {
+        MessageBox.confirm("您有未保存的修改，確定要離開嗎？", "提示", {
+          confirmButtonText: "確定",
+          cancelButtonText: "取消",
+          type: "warning",
+          distinguishCancelAndClose: true, // 區分取消按鈕與關閉圖標
+          callback: action => {
+            if (action === "confirm") {
+              this.resetAndClose();
+            }
+            // 用戶取消關閉，不執行任何操作
+          }
+        });
+      } else {
+        this.resetAndClose();
+      }
+    },
+
+    // 實際的重置和關閉邏輯
+    resetAndClose() {
+      // 重置表單
+      if (this.$refs.orderForm) {
+        this.$refs.orderForm.resetFields();
+      }
+      this.form = {
+        id: "",
+        order_number: "",
+        receiver_name: "",
+        receiver_phone: "",
+        receiver_address: ""
+      };
+      this.formChanged = false;
+
+      // 通知父組件關閉對話框
+      this.$emit("update:visible", false);
     }
   }
 };
 </script>
 
 <style lang="scss" scoped>
-::v-deep .list-dialog {
+.order-dialog-content {
+  padding: 0 24px;
+  margin-top: 8px;
+
+  .el-divider {
+    margin: 28px 0 20px;
+
+    ::v-deep .el-divider__text {
+      font-size: 18px;
+      font-weight: 600;
+      color: #409eff;
+      background-color: #fff;
+    }
+  }
+}
+
+.phone-input-container {
+  ::v-deep .el-input-group__append {
+    padding: 0;
+  }
+}
+
+::v-deep .modern-dialog {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+
   .el-dialog__header {
-    background: linear-gradient(135deg, #1989fa, #5cadff);
-    padding: 15px 20px;
-    border-radius: 4px 4px 0 0;
+    background-color: #409eff;
+    padding: 16px 20px;
     margin-right: 0;
 
     .el-dialog__title {
-      color: #ffffff;
-      font-size: 18px;
+      color: white;
       font-weight: 600;
-      letter-spacing: 1px;
+      font-size: 20px;
     }
 
     .el-dialog__headerbtn {
-      top: 15px;
+      top: 16px;
+      right: 16px;
 
       .el-dialog__close {
-        color: #ffffff;
-        font-weight: 600;
+        color: white;
+        font-weight: bold;
+        font-size: 20px;
+      }
+    }
+  }
+
+  .el-dialog__body {
+    padding: 20px 0;
+  }
+
+  .el-dialog__footer {
+    padding: 10px 20px 20px;
+    border-top: 1px solid #f0f0f0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+
+    .el-button {
+      padding: 12px 24px;
+      font-size: 16px;
+      border-radius: 8px;
+
+      &--primary {
+        background-color: #409eff;
+        border-color: #409eff;
+        box-shadow: 0 4px 12px rgba(64, 158, 255, 0.4);
+        transition: all 0.3s ease;
 
         &:hover {
-          color: #f2f6fc;
+          background-color: #66b1ff;
+          transform: translateY(-2px);
         }
       }
     }
   }
 }
 
-.dialog-content {
-  padding: 0 0 16px;
-}
+::v-deep .el-form {
+  .el-form-item {
+    margin-bottom: 22px;
 
-.order-card {
-  background-color: #f8f9fa;
-  color: #303133;
-  padding: 16px 24px;
-  margin-bottom: 24px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-
-  .order-number {
-    display: flex;
-    align-items: center;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid #eaeaea;
-
-    .badge {
-      font-size: 14px;
+    .el-form-item__label {
       font-weight: 500;
       color: #606266;
-      margin-right: 12px;
     }
 
-    .number {
-      font-size: 18px;
-      font-weight: 600;
-      color: #303133;
-      letter-spacing: 0.5px;
-    }
-  }
+    .el-input__inner,
+    .el-textarea__inner {
+      border-radius: 8px;
+      padding: 12px;
+      transition: all 0.3s ease;
+      border: 1px solid #dcdfe6;
 
-  .order-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-
-    .info-row {
-      display: flex;
-      gap: 24px;
-    }
-
-    .info-item {
-      display: flex;
-      align-items: center;
-
-      i {
-        margin-right: 8px;
-        font-size: 18px;
-        color: #1890ff;
+      &:focus {
+        border-color: #409eff;
+        box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
       }
 
-      span {
-        font-size: 15px;
-        color: #303133;
+      &:hover {
+        border-color: #c0c4cc;
       }
     }
 
-    .status-tag {
-      display: flex;
-      align-items: center;
+    .el-input-group__append {
+      border-top-right-radius: 8px;
+      border-bottom-right-radius: 8px;
+    }
 
-      .status-label {
-        margin-right: 8px;
-        font-weight: 500;
-        color: #606266;
+    .el-date-editor {
+      width: 100%;
+
+      .el-input__inner {
+        padding-left: 40px;
       }
     }
-  }
-}
 
-::v-deep .el-tag {
-  padding: 6px 12px;
-  border-radius: 4px;
-  font-weight: 500;
-  font-size: 14px;
-}
-
-.modern-form {
-  padding: 0 24px;
-
-  .section-title {
-    display: flex;
-    align-items: center;
-    margin-bottom: 20px;
-    padding-bottom: 12px;
-    border-bottom: 2px solid #f0f0f0;
-
-    i {
-      font-size: 20px;
-      color: #1890ff;
-      margin-right: 10px;
-    }
-
-    span {
-      font-size: 18px;
-      font-weight: 600;
-      color: #2c3e50;
-    }
-  }
-
-  ::v-deep .el-form-item__label {
-    font-weight: 500;
-    font-size: 15px;
-    color: #606266;
-    line-height: 1.2;
-    padding-bottom: 8px;
-  }
-
-  ::v-deep .el-input__inner {
-    height: 42px;
-    border-radius: 6px;
-    border-color: #e4e7ed;
-
-    &:focus,
-    &:hover {
-      border-color: #1890ff;
-    }
-  }
-
-  ::v-deep .el-textarea__inner {
-    border-radius: 6px;
-    padding: 12px;
-    line-height: 1.5;
-
-    &:focus,
-    &:hover {
-      border-color: #1890ff;
-    }
-  }
-
-  .phone-inputs {
-    display: flex;
-    gap: 8px;
-
-    .extension-input {
-      width: 80px;
-      flex-shrink: 0;
-    }
-  }
-}
-
-::v-deep .el-button {
-  padding: 10px 24px;
-  font-size: 15px;
-  border-radius: 6px;
-  transition: all 0.3s;
-
-  &--primary {
-    background-color: #1890ff;
-    border: none;
-    box-shadow: 0 2px 6px rgba(24, 144, 255, 0.3);
-
-    &:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 8px rgba(24, 144, 255, 0.4);
+    &.is-required .el-form-item__label:before {
+      color: #f56c6c;
     }
   }
 }
 
 // 響應式設計
 @media screen and (max-width: 768px) {
-  .list-dialog {
+  ::v-deep .modern-dialog {
     width: 95% !important;
-    margin-top: 5vh !important;
-  }
+    margin-top: 3vh !important;
 
-  .order-info {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
+    .el-dialog__header {
+      padding: 14px 16px;
 
-    .info-row {
+      .el-dialog__title {
+        font-size: 18px;
+      }
+    }
+
+    .el-dialog__footer {
+      padding: 16px;
       flex-direction: column;
-      gap: 12px;
-    }
 
-    .status-tag {
-      align-self: flex-start;
+      .el-button {
+        width: 100%;
+        margin-left: 0 !important;
+        padding: 12px;
+      }
     }
   }
 
-  .phone-inputs {
-    flex-direction: column;
+  .order-dialog-content {
+    padding: 0 16px;
+  }
 
-    .extension-input {
-      width: 100% !important;
+  ::v-deep .el-form {
+    .el-form-item__label {
+      float: none;
+      display: block;
+      text-align: left;
+      padding: 0 0 8px;
+      line-height: 1.5;
+      white-space: normal;
     }
+
+    .el-form-item__content {
+      margin-left: 0 !important;
+    }
+  }
+
+  .el-row {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .el-col {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
   }
 }
 </style>

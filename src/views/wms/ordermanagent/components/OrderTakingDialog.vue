@@ -2,14 +2,20 @@
   <el-dialog
     :title="dialogTitle"
     :visible.sync="dialogVisible"
-    width="60%"
+    width="70%"
+    :append-to-body="true"
+    :modal-append-to-body="false"
+    :modal="false"
     :close-on-click-modal="false"
     :close-on-press-escape="false"
     @close="handleDialogClose"
+    custom-class="modern-dialog"
   >
     <div v-loading="loading" class="order-dialog-content">
       <!-- 客戶資訊區域 -->
-      <el-divider content-position="left">客戶資訊</el-divider>
+      <el-divider content-position="left">
+        <i class="el-icon-user-solid"></i> 客戶資訊
+      </el-divider>
       <el-form
         ref="orderForm"
         :model="form"
@@ -25,7 +31,7 @@
           </el-col>
           <el-col :span="12" :xs="24">
             <el-form-item label="客戶名稱" prop="customerName">
-              <el-input v-model="form.customerName" disabled></el-input>
+              <el-input v-model="form.customerName"></el-input>
             </el-form-item>
           </el-col>
         </el-row>
@@ -37,14 +43,27 @@
               class="phone-input-container"
             >
               <el-input v-model="form.contactPhone">
-                <template slot="append">
+                <!-- <template slot="append">
                   <el-input
                     v-model="form.extension"
                     placeholder="分機"
                     style="width: 60px"
                   ></el-input>
-                </template>
+                </template> -->
               </el-input>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="24" :xs="24">
+            <el-form-item label="收件地址" prop="receiverAddress">
+              <el-input
+                v-model="form.receiverAddress"
+                placeholder="請輸入收件地址"
+                type="textarea"
+                :rows="2"
+                :autosize="{ minRows: 2, maxRows: 4 }"
+              ></el-input>
             </el-form-item>
           </el-col>
         </el-row>
@@ -54,11 +73,7 @@
         <el-row :gutter="20">
           <el-col :span="12" :xs="24">
             <el-form-item label="訂單金額" prop="totalAmount">
-              <el-input
-                v-model="formattedTotalAmount"
-                disabled
-                prefix-icon="el-icon-money"
-              ></el-input>
+              <el-input v-model="formattedTotalAmount" disabled></el-input>
             </el-form-item>
           </el-col>
           <el-col :span="12" :xs="24">
@@ -75,250 +90,26 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-row :gutter="20">
-          <el-col :span="12" :xs="24">
-            <el-form-item label="處理人員" prop="processor">
-              <el-select
-                v-model="form.processor"
-                placeholder="選擇處理人員"
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="item in processorOptions"
-                  :key="item.value"
-                  :label="item.label"
-                  :value="item.value"
-                ></el-option>
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <!-- 付款資訊 -->
-        <el-divider content-position="left">付款資訊</el-divider>
-        <el-row :gutter="20">
-          <el-col :span="12" :xs="24">
-            <el-form-item label="付款狀態" prop="paymentStatus">
-              <el-select
-                v-model="form.paymentStatus"
-                placeholder="選擇付款狀態"
-                @change="handlePaymentStatusChange"
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="item in paymentStatusOptions"
-                  :key="item.value"
-                  :label="item.label"
-                  :value="item.value"
-                >
-                  <span style="float: left">
-                    <i :class="item.icon" style="margin-right: 8px"></i>
-                    {{ item.label }}
-                  </span>
-                </el-option>
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12" :xs="24">
-            <el-form-item label="已付金額" prop="paidAmount">
-              <el-input
-                v-model.number="form.paidAmount"
-                type="number"
-                prefix-icon="el-icon-money"
-                placeholder="請輸入已付金額"
-              ></el-input>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="12" :xs="24">
-            <el-form-item label="付款日期" prop="paymentDate">
-              <el-date-picker
-                v-model="form.paymentDate"
-                type="date"
-                placeholder="選擇日期"
-                format="yyyy-MM-dd"
-                value-format="yyyy-MM-dd"
-                style="width: 100%"
-              ></el-date-picker>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12" :xs="24">
-            <el-form-item label="付款方式" prop="paymentMethod">
-              <el-select
-                v-model="form.paymentMethod"
-                placeholder="選擇付款方式"
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="item in paymentMethodOptions"
-                  :key="item.value"
-                  :label="item.label"
-                  :value="item.value"
-                ></el-option>
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="12" :xs="24">
-            <el-form-item
-              label="末五碼"
-              prop="bankLastFive"
-              v-if="showBankFields"
-            >
-              <el-input
-                v-model="form.bankLastFive"
-                maxlength="5"
-                placeholder="請輸入末五碼"
-              ></el-input>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12" :xs="24">
-            <el-form-item
-              label="銀行截圖"
-              prop="bankScreenshot"
-              v-if="showBankFields"
-            >
-              <image-uploader
-                v-model="form.bankScreenshot"
-                placeholder="點擊上傳銀行轉帳截圖"
-                @change="handleScreenshotChange"
-              />
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <!-- 接單狀態 -->
-        <el-divider content-position="left">接單狀態</el-divider>
-        <el-row :gutter="20">
-          <el-col :span="12" :xs="24">
-            <el-form-item label="接單狀態" prop="orderStatus">
-              <el-select
-                v-model="form.orderStatus"
-                placeholder="選擇接單狀態"
-                @change="handleOrderStatusChange"
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="item in orderStatusOptions"
-                  :key="item.value"
-                  :label="item.label"
-                  :value="item.value"
-                >
-                  <span style="float: left">
-                    <i :class="item.icon" style="margin-right: 8px"></i>
-                    {{ item.label }}
-                  </span>
-                </el-option>
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <!-- 備註 -->
-        <el-divider content-position="left">備註</el-divider>
-        <el-row>
-          <el-col :span="24">
-            <el-form-item label="新增備註" prop="newRemark">
-              <el-input
-                v-model="form.newRemark"
-                type="textarea"
-                :rows="3"
-                placeholder="請輸入備註"
-              ></el-input>
-              <div class="remark-actions">
-                <el-checkbox v-model="form.isImportantRemark">
-                  標記為重要
-                </el-checkbox>
-                <el-checkbox v-model="form.isPinnedRemark"
-                  >置頂顯示</el-checkbox
-                >
-              </div>
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <!-- 顯示所有相關備註 (使用可折疊面板) -->
-        <!-- <el-row v-if="remarks.length > 0">
-          <el-col :span="24">
-            <el-collapse v-model="activeRemarkPanels" class="remarks-collapse">
-              <el-collapse-item name="remarks">
-                <template slot="title">
-                  <div class="remarks-collapse-title">
-                    <span>歷史備註</span>
-                    <el-badge
-                      :value="remarks.length"
-                      :max="99"
-                      class="remarks-count"
-                    ></el-badge>
-                  </div>
-                </template>
-
-                <div class="remarks-container">
-                  <el-timeline>
-                    <el-timeline-item
-                      v-for="(remark, index) in remarks"
-                      :key="index"
-                      :timestamp="remark.createTime"
-                      :type="getRemarkType(remark)"
-                    >
-                      <el-card class="remark-card" shadow="hover">
-                        <div class="remark-header">
-                          <span
-                            v-if="remark.isImportant"
-                            class="remark-badge important"
-                          >
-                            <i class="el-icon-star-on"></i> 重要
-                          </span>
-                          <span
-                            v-if="remark.isPinned"
-                            class="remark-badge pinned"
-                          >
-                            <i class="el-icon-top"></i> 置頂
-                          </span>
-                          <span class="remark-author">{{
-                            remark.createdBy
-                          }}</span>
-                        </div>
-                        <div class="remark-content">{{ remark.content }}</div>
-                        <div
-                          v-if="remark.images && remark.images.length > 0"
-                          class="remark-images"
-                        >
-                          <el-image
-                            v-for="(img, imgIndex) in remark.images"
-                            :key="imgIndex"
-                            :src="img"
-                            :preview-src-list="remark.images"
-                            fit="cover"
-                            class="remark-image"
-                          ></el-image>
-                        </div>
-                      </el-card>
-                    </el-timeline-item>
-                  </el-timeline>
-                </div>
-              </el-collapse-item>
-            </el-collapse>
-          </el-col>
-        </el-row> -->
       </el-form>
     </div>
 
     <span slot="footer" class="dialog-footer">
-      <el-button @click="handleDialogClose">取消</el-button>
-      <el-button type="primary" @click="handleSubmit" :loading="submitting">
-        確認修改
+      <el-button @click="handleDialogClose" size="medium">取消</el-button>
+      <el-button
+        type="primary"
+        @click="handleSubmit"
+        :loading="submitting"
+        size="medium"
+      >
+        <i class="el-icon-check"></i> 確認修改
       </el-button>
     </span>
   </el-dialog>
 </template>
 
 <script>
-import { formatDate } from "@/utils/date";
-import ImageUploader from "@/components/BaseForm/ImageUploader.vue";
-import OrderTakingService from "../services/OrderTakingService.js";
+import OrderTakingService from "../services/OrderTakingServices.js";
+import { MessageBox } from "element-ui";
 
 export default {
   name: "OrderTakingDialog",
@@ -335,63 +126,33 @@ export default {
       type: Array,
       default: () => []
     },
-    paymentStatusOptions: {
-      type: Array,
-      default: () => []
-    },
     orderStatusOptions: {
       type: Array,
       default: () => []
     }
   },
-  components: {
-    ImageUploader
-  },
   data() {
     return {
+      formChanged: false, // 新增：追蹤表單是否有變更
+      originalFormData: {}, // 新增：保存原始表單數據用於比較
       dialogVisible: false,
       loading: false,
       submitting: false,
-      activeRemarkPanels: [], // 備註摺疊面板狀態
       form: {
         id: "",
         orderNumber: "",
         customerName: "",
         contactPhone: "",
-        extension: "",
+        receiverAddress: "",
         totalAmount: 0,
-        paidAmount: 0,
-        paymentMethod: "bankTransfer",
-        bankLastFive: "",
-        bankScreenshot: "",
-        paymentStatus: "",
         orderStatus: "",
-        orderDate: "",
-        paymentDate: "",
-        processor: "",
-        newRemark: "",
-        isImportantRemark: false,
-        isPinnedRemark: false
+        orderDate: ""
       },
-      // 備註列表
-      remarks: [],
-      // 處理人員選項
-      processorOptions: [
-        { value: "admin", label: "系統管理員" },
-        { value: "sales1", label: "業務一" },
-        { value: "sales2", label: "業務二" },
-        { value: "sales3", label: "業務三" }
-      ],
-      // 付款方式選項
-      paymentMethodOptions: [
-        { value: "bankTransfer", label: "銀行轉帳" },
-        { value: "creditCard", label: "信用卡" },
-        { value: "cash", label: "現金" },
-        { value: "linePay", label: "Line Pay" },
-        { value: "other", label: "其他" }
-      ],
       // 表單驗證規則
       rules: {
+        customerName: [
+          { required: true, message: "請輸入客戶名稱", trigger: "blur" }
+        ],
         contactPhone: [
           {
             pattern: /^\d{8,10}$/,
@@ -399,38 +160,8 @@ export default {
             trigger: "blur"
           }
         ],
-        paidAmount: [
-          { type: "number", message: "必須為數字", trigger: "blur" },
-          {
-            validator: (rule, value, callback) => {
-              if (value > this.form.totalAmount) {
-                callback(new Error("已付金額不能超過訂單總金額"));
-              } else {
-                callback();
-              }
-            },
-            trigger: "blur"
-          }
-        ],
-        paymentStatus: [
-          { required: true, message: "請選擇付款狀態", trigger: "change" }
-        ],
-        orderStatus: [
-          { required: true, message: "請選擇接單狀態", trigger: "change" }
-        ],
-        bankLastFive: [
-          {
-            validator: (rule, value, callback) => {
-              if (this.showBankFields && !value) {
-                callback(new Error("請輸入銀行末五碼"));
-              } else if (value && !/^\d{5}$/.test(value)) {
-                callback(new Error("末五碼必須為5位數字"));
-              } else {
-                callback();
-              }
-            },
-            trigger: "blur"
-          }
+        receiverAddress: [
+          { required: true, message: "請輸入收件地址", trigger: "blur" }
         ]
       }
     };
@@ -442,9 +173,11 @@ export default {
     formattedTotalAmount() {
       return `$${this.form.totalAmount.toLocaleString()}`;
     },
-    showBankFields() {
-      // 只有選擇銀行轉帳時才顯示末五碼和截圖欄位
-      return this.form.paymentMethod === "bankTransfer";
+    orderStatusLabel() {
+      const status = this.orderStatusOptions.find(
+        option => option.value === this.form.orderStatus
+      );
+      return status ? status.label : this.form.orderStatus;
     }
   },
   watch: {
@@ -461,6 +194,19 @@ export default {
         }
       },
       deep: true
+    },
+    // 監聽表單變化
+    form: {
+      handler(newVal) {
+        if (this.dialogVisible && this.originalFormData.id) {
+          // 檢查關鍵字段是否有變化
+          this.formChanged =
+            this.originalFormData.customerName !== newVal.customerName ||
+            this.originalFormData.contactPhone !== newVal.contactPhone ||
+            this.originalFormData.receiverAddress !== newVal.receiverAddress;
+        }
+      },
+      deep: true
     }
   },
   methods: {
@@ -469,16 +215,18 @@ export default {
       this.loading = true;
       try {
         // 複製訂單數據到表單
+        const formData = JSON.parse(JSON.stringify(this.orderData));
+
         this.form = {
           ...this.form,
-          ...JSON.parse(JSON.stringify(this.orderData)),
-          newRemark: "",
-          isImportantRemark: false,
-          isPinnedRemark: false
+          ...formData
         };
 
-        // 加載備註
-        this.loadRemarks();
+        // 保存原始數據的副本用於比較
+        this.originalFormData = { ...this.form };
+
+        // 重置表單變更標記
+        this.formChanged = false;
       } catch (error) {
         console.error("初始化表單數據失敗:", error);
         this.$message.error("初始化表單數據失敗");
@@ -487,106 +235,7 @@ export default {
       }
     },
 
-    // 加載備註
-    async loadRemarks() {
-      if (!this.form.id) return;
-
-      try {
-        this.loading = true;
-        const response = await OrderTakingService.getOrderRemarks(this.form.id);
-
-        if (response.success && response.data) {
-          this.remarks = response.data;
-        } else {
-          this.remarks = [];
-        }
-      } catch (error) {
-        console.error("獲取備註數據失敗:", error);
-        this.$message.error("獲取備註數據失敗");
-        this.remarks = [];
-      } finally {
-        this.loading = false;
-      }
-    },
-
-    // 處理付款狀態變更
-    handlePaymentStatusChange(value) {
-      // 根據付款狀態自動調整接單狀態
-      if (value === "paid") {
-        if (this.form.orderStatus !== "cancelled") {
-          this.form.orderStatus = "completed";
-        }
-      } else if (value === "cancelled" || value === "refunded") {
-        this.form.orderStatus = "cancelled";
-      }
-
-      // 若為已付款狀態，設置付款日期為今天
-      if (value === "paid" && !this.form.paymentDate) {
-        this.form.paymentDate = formatDate(new Date(), "YYYY-MM-DD");
-      }
-    },
-
-    // 處理接單狀態變更
-    handleOrderStatusChange(value) {
-      // 根據接單狀態自動調整付款狀態
-      if (value === "completed") {
-        if (this.form.paymentStatus !== "refunded") {
-          this.form.paymentStatus = "paid";
-
-          // 若付款日期為空，則設置為今天
-          if (!this.form.paymentDate) {
-            this.form.paymentDate = formatDate(new Date(), "YYYY-MM-DD");
-          }
-        }
-      } else if (value === "cancelled") {
-        if (
-          this.form.paymentStatus !== "refunded" &&
-          this.form.paymentStatus !== "paid"
-        ) {
-          this.form.paymentStatus = "cancelled";
-        }
-      }
-    },
-
-    // 處理上傳銀行截圖
-    handleScreenshotChange(file) {
-      if (file && typeof file !== "string") {
-        this.uploadBankScreenshot(file);
-      }
-    },
-
-    async uploadBankScreenshot(file) {
-      try {
-        // 創建 FormData 對象
-        const formData = new FormData();
-        formData.append("image", file);
-
-        // 調用上傳服務
-        const response = await OrderTakingService.uploadImage(formData);
-
-        if (response.success && response.data) {
-          this.form.bankScreenshot = response.data.url;
-          this.$message.success("上傳成功");
-        } else {
-          this.$message.error(response.message || "上傳失敗");
-        }
-      } catch (error) {
-        console.error("上傳截圖失敗:", error);
-        this.$message.error("上傳截圖失敗");
-      }
-    },
-
-    // 獲取備註類型樣式
-    getRemarkType(remark) {
-      if (remark.isImportant) {
-        return "warning";
-      } else if (remark.isPinned) {
-        return "primary";
-      }
-      return "info";
-    },
-
-    // 提交表單
+    // 提交表單 - 使用 MessageBox 替代 $confirm
     async handleSubmit() {
       // 表單驗證
       this.$refs.orderForm.validate(async valid => {
@@ -595,78 +244,142 @@ export default {
           return;
         }
 
-        this.submitting = true;
-        try {
-          // 準備要提交的數據
-          const formData = {
-            ...this.form
-          };
+        // 檢查是否有重要資料變更
+        const hasImportantChanges =
+          this.originalFormData.customerName !== this.form.customerName ||
+          this.originalFormData.contactPhone !== this.form.contactPhone ||
+          this.originalFormData.receiverAddress !== this.form.receiverAddress;
 
-          // 剔除不需要的欄位
-          delete formData.newRemark;
-          delete formData.isImportantRemark;
-          delete formData.isPinnedRemark;
+        // 如果有重要資料變更，顯示確認對話框
+        if (hasImportantChanges) {
+          // 準備顯示的變更內容
+          const changes = [];
 
-          // 發送更新請求
-          const response = await OrderTakingService.updateOrder(formData);
-
-          if (response.success) {
-            // 如果有新備註，則添加備註
-            if (this.form.newRemark) {
-              await this.addRemark();
-            }
-
-            this.$message.success("訂單更新成功");
-
-            // 通知父組件更新成功
-            this.$emit("update-success", formData);
-
-            // 關閉對話框
-            this.handleDialogClose();
-          } else {
-            this.$message.error(response.message || "更新失敗");
+          if (this.originalFormData.customerName !== this.form.customerName) {
+            changes.push(
+              `客戶名稱: ${this.originalFormData.customerName} → ${
+                this.form.customerName
+              }`
+            );
           }
-        } catch (error) {
-          console.error("更新訂單失敗:", error);
-          this.$message.error("更新訂單失敗: " + error.message);
-        } finally {
-          this.submitting = false;
+
+          if (this.originalFormData.contactPhone !== this.form.contactPhone) {
+            changes.push(
+              `聯絡電話: ${this.originalFormData.contactPhone} → ${
+                this.form.contactPhone
+              }`
+            );
+          }
+
+          if (
+            this.originalFormData.receiverAddress !== this.form.receiverAddress
+          ) {
+            changes.push(
+              `收件地址: ${this.originalFormData.receiverAddress} → ${
+                this.form.receiverAddress
+              }`
+            );
+          }
+
+          // 使用 MessageBox.confirm 而不是 this.$confirm
+          MessageBox.confirm(
+            `<p>您即將修改以下重要資料：</p><ul>${changes
+              .map(c => `<li>${c}</li>`)
+              .join("")}</ul><p>確定要進行這些變更嗎？</p>`,
+            "確認修改",
+            {
+              modal: false,
+              confirmButtonText: "確定修改",
+              cancelButtonText: "取消",
+              type: "warning",
+              dangerouslyUseHTMLString: true,
+              distinguishCancelAndClose: true, // 區分取消按鈕與關閉圖標
+              callback: action => {
+                if (action === "confirm") {
+                  // 用戶確認，執行實際提交
+                  this.submitChanges();
+                } else {
+                  // 用戶取消提交，不執行任何操作
+                  this.$message.info("已取消修改");
+                }
+              }
+            }
+          );
+        } else {
+          // 沒有重要資料變更，直接提交
+          this.submitChanges();
         }
       });
     },
 
-    // 添加備註
-    async addRemark() {
-      if (!this.form.newRemark) return;
-
+    // 實際的提交邏輯
+    async submitChanges() {
+      this.submitting = true;
       try {
-        const remarkData = {
-          orderId: this.form.id,
-          content: this.form.newRemark,
-          isPinned: this.form.isPinnedRemark,
-          isImportant: this.form.isImportantRemark
+        // 準備要更新的數據（僅包含需要更新的字段）
+        const patchData = {
+          receiver_name: this.form.customerName,
+          receiver_phone: this.form.contactPhone,
+          receiver_address: this.form.receiverAddress
         };
 
-        const response = await OrderTakingService.addOrderRemark(remarkData);
+        console.log("提交的數據:", patchData);
+
+        // 使用patchOrderInfo函數進行部分更新
+        const response = await OrderTakingService.patchOrderInfo(
+          this.form.id,
+          patchData
+        );
+
+        console.log("API回應:", response);
 
         if (response.success) {
-          // 清空備註輸入
-          this.form.newRemark = "";
-          this.form.isImportantRemark = false;
-          this.form.isPinnedRemark = false;
+          this.$message.success(response.message || "訂單更新成功");
 
-          // 刷新備註列表
-          await this.loadRemarks();
+          // 通知父組件更新成功
+          this.$emit("update-success", {
+            ...this.orderData, // 原始訂單數據
+            customerName: this.form.customerName,
+            contactPhone: this.form.contactPhone,
+            receiverAddress: this.form.receiverAddress
+          });
+
+          // 關閉對話框
+          this.resetAndClose();
         } else {
-          this.$message.error(response.message || "備註添加失敗");
+          this.$message.error(response.message || "更新失敗");
         }
       } catch (error) {
-        console.error("添加備註失敗:", error);
+        console.error("更新訂單失敗:", error);
+        this.$message.error("更新訂單失敗: " + (error.message || "未知錯誤"));
+      } finally {
+        this.submitting = false;
       }
     },
 
-    // 關閉對話框
+    // 關閉對話框 - 使用 MessageBox 替代 $confirm
     handleDialogClose() {
+      // 如果表單已變更但未提交，顯示確認對話框
+      if (this.formChanged) {
+        MessageBox.confirm("您有未保存的修改，確定要離開嗎？", "提示", {
+          confirmButtonText: "確定",
+          cancelButtonText: "取消",
+          type: "warning",
+          distinguishCancelAndClose: true, // 區分取消按鈕與關閉圖標
+          callback: action => {
+            if (action === "confirm") {
+              this.resetAndClose();
+            }
+            // 用戶取消關閉，不執行任何操作
+          }
+        });
+      } else {
+        this.resetAndClose();
+      }
+    },
+
+    // 實際的重置和關閉邏輯
+    resetAndClose() {
       // 重置表單
       if (this.$refs.orderForm) {
         this.$refs.orderForm.resetFields();
@@ -677,21 +390,12 @@ export default {
         customerName: "",
         contactPhone: "",
         extension: "",
+        receiverAddress: "",
         totalAmount: 0,
-        paidAmount: 0,
-        paymentMethod: "",
-        bankLastFive: "",
-        bankScreenshot: "",
-        paymentStatus: "",
         orderStatus: "",
-        orderDate: "",
-        paymentDate: "",
-        processor: "",
-        newRemark: "",
-        isImportantRemark: false,
-        isPinnedRemark: false
+        orderDate: ""
       };
-      this.remarks = [];
+      this.formChanged = false;
 
       // 通知父組件關閉對話框
       this.$emit("update:visible", false);
@@ -702,15 +406,16 @@ export default {
 
 <style lang="scss" scoped>
 .order-dialog-content {
-  padding: 0 20px;
+  padding: 0 24px;
+  margin-top: 8px;
 
   .el-divider {
-    margin: 24px 0 16px;
+    margin: 28px 0 20px;
 
     ::v-deep .el-divider__text {
-      font-size: 16px;
-      font-weight: 500;
-      color: #606266;
+      font-size: 18px;
+      font-weight: 600;
+      color: #409eff;
       background-color: #fff;
     }
   }
@@ -722,127 +427,142 @@ export default {
   }
 }
 
-.remark-actions {
-  margin-top: 8px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-}
+::v-deep .modern-dialog {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
 
-.remarks-collapse {
-  margin-top: 16px;
+  .el-dialog__header {
+    background-color: #409eff;
+    padding: 16px 20px;
+    margin-right: 0;
 
-  ::v-deep .el-collapse-item__header {
-    background-color: #f9f9f9;
-    color: #606266;
-    font-weight: 500;
-    padding: 0 16px;
-    border-radius: 8px 8px 0 0;
+    .el-dialog__title {
+      color: white;
+      font-weight: 600;
+      font-size: 20px;
+    }
+
+    .el-dialog__headerbtn {
+      top: 16px;
+      right: 16px;
+
+      .el-dialog__close {
+        color: white;
+        font-weight: bold;
+        font-size: 20px;
+      }
+    }
   }
 
-  ::v-deep .el-collapse-item__wrap {
-    background-color: #f9f9f9;
-    border-radius: 0 0 8px 8px;
+  .el-dialog__body {
+    padding: 20px 0;
   }
 
-  .remarks-collapse-title {
+  .el-dialog__footer {
+    padding: 10px 20px 20px;
+    border-top: 1px solid #f0f0f0;
     display: flex;
-    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
 
-    span {
-      margin-right: 8px;
-    }
+    .el-button {
+      padding: 12px 24px;
+      font-size: 16px;
+      border-radius: 8px;
 
-    .remarks-count {
-      transform: scale(0.8);
+      &--primary {
+        background-color: #409eff;
+        border-color: #409eff;
+        box-shadow: 0 4px 12px rgba(64, 158, 255, 0.4);
+        transition: all 0.3s ease;
+
+        &:hover {
+          background-color: #66b1ff;
+          transform: translateY(-2px);
+        }
+      }
     }
   }
 }
 
-.remarks-container {
-  padding: 0 16px 16px;
+::v-deep .el-form {
+  .el-form-item {
+    margin-bottom: 22px;
 
-  .el-timeline {
-    padding-left: 0;
-  }
+    .el-form-item__label {
+      font-weight: 500;
+      color: #606266;
+    }
 
-  .remark-card {
-    margin-bottom: 8px;
+    .el-input__inner,
+    .el-textarea__inner {
+      border-radius: 8px;
+      padding: 12px;
+      transition: all 0.3s ease;
+      border: 1px solid #dcdfe6;
 
-    .remark-header {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      margin-bottom: 8px;
-
-      .remark-badge {
-        display: inline-flex;
-        align-items: center;
-        padding: 0 8px;
-        height: 20px;
-        line-height: 20px;
-        font-size: 12px;
-        border-radius: 10px;
-        margin-right: 8px;
-        margin-bottom: 4px;
-
-        &.important {
-          background-color: #fdf6ec;
-          color: #e6a23c;
-        }
-
-        &.pinned {
-          background-color: #ecf5ff;
-          color: #409eff;
-        }
-
-        i {
-          margin-right: 3px;
-        }
+      &:focus {
+        border-color: #409eff;
+        box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
       }
 
-      .remark-author {
-        font-size: 13px;
-        color: #909399;
+      &:hover {
+        border-color: #c0c4cc;
       }
     }
 
-    .remark-content {
-      font-size: 14px;
-      line-height: 1.6;
-      word-break: break-all;
-      white-space: pre-wrap;
+    .el-input-group__append {
+      border-top-right-radius: 8px;
+      border-bottom-right-radius: 8px;
     }
 
-    .remark-images {
-      margin-top: 8px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
+    .el-date-editor {
+      width: 100%;
 
-      .remark-image {
-        width: 80px;
-        height: 80px;
-        border-radius: 4px;
-        cursor: pointer;
+      .el-input__inner {
+        padding-left: 40px;
       }
+    }
+
+    &.is-required .el-form-item__label:before {
+      color: #f56c6c;
     }
   }
 }
 
 // 響應式設計
 @media screen and (max-width: 768px) {
-  .el-dialog {
+  ::v-deep .modern-dialog {
     width: 95% !important;
-    margin-top: 5vh !important;
+    margin-top: 3vh !important;
+
+    .el-dialog__header {
+      padding: 14px 16px;
+
+      .el-dialog__title {
+        font-size: 18px;
+      }
+    }
+
+    .el-dialog__footer {
+      padding: 16px;
+      flex-direction: column;
+
+      .el-button {
+        width: 100%;
+        margin-left: 0 !important;
+        padding: 12px;
+      }
+    }
   }
 
   .order-dialog-content {
-    padding: 0 10px;
+    padding: 0 16px;
   }
 
-  .el-form {
-    ::v-deep .el-form-item__label {
+  ::v-deep .el-form {
+    .el-form-item__label {
       float: none;
       display: block;
       text-align: left;
@@ -851,7 +571,7 @@ export default {
       white-space: normal;
     }
 
-    ::v-deep .el-form-item__content {
+    .el-form-item__content {
       margin-left: 0 !important;
     }
   }

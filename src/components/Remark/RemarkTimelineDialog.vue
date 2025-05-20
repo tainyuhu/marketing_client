@@ -5,6 +5,10 @@
     :visible.sync="dialogVisible"
     custom-class="remark-timeline-dialog"
     width="500px"
+    :append-to-body="true"
+    :modal-append-to-body="false"
+    :modal="false"
+    :close-on-press-escape="false"
     :close-on-click-modal="false"
     :show-close="true"
     @closed="handleClose"
@@ -55,7 +59,6 @@
     <div class="fab-button" v-if="!showAddRemark" @click="showAddRemark = true">
       <i class="el-icon-plus"></i>
     </div>
-
     <!-- 備註時間線 -->
     <remark-list
       v-if="!showAddRemark"
@@ -76,6 +79,9 @@
       custom-class="add-remark-dialog"
       width="500px"
       :append-to-body="true"
+      :modal-append-to-body="false"
+      :modal="false"
+      :close-on-press-escape="false"
       :close-on-click-modal="false"
       :show-close="true"
       @closed="cancelAddRemark"
@@ -214,14 +220,12 @@ export default {
   computed: {
     // 根據篩選條件過濾備註
     filteredRemarks() {
-      if (!this.remarks || this.remarks.length === 0) return [];
-
       if (this.currentFilter === "all") {
         return this.remarks;
       } else if (this.currentFilter === "important") {
-        return this.remarks.filter(remark => remark.isImportant);
+        return this.remarks.filter(remark => remark.is_important);
       } else if (this.currentFilter === "pinned") {
-        return this.remarks.filter(remark => remark.isPinned);
+        return this.remarks.filter(remark => remark.is_pinned);
       }
 
       return this.remarks;
@@ -229,6 +233,11 @@ export default {
   },
 
   watch: {
+    remarks(newVal) {
+      // 當備註列表更新時重置篩選條件
+      this.currentFilter = "all";
+    },
+
     visible(val) {
       this.dialogVisible = val;
       if (val) {

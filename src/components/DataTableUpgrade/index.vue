@@ -96,7 +96,7 @@
         <el-table-column type="expand">
           <template slot-scope="scope">
             <sub-table
-              :data="scope.row.details || []"
+              :data="scope.row.items || []"
               :columns="subTableColumns"
               :row-key="subRowKey"
               :parent-row="scope.row"
@@ -416,30 +416,25 @@ export default {
     orderStatusOptions: {
       type: Array,
       default: () => [
-        { value: 0, label: "未處理", type: "warning", icon: "el-icon-time" },
+        { value: 0, label: "未接單", type: "warning", icon: "el-icon-time" },
         {
           value: 1,
-          label: "已完成",
+          label: "已接單",
           type: "success",
           icon: "el-icon-circle-check"
         },
-        { value: 2, label: "處理中", type: "info", icon: "el-icon-loading" },
-        {
-          value: 3,
-          label: "已取消",
-          type: "danger",
-          icon: "el-icon-circle-close"
-        }
+        { value: 2, label: "已拒絕", type: "info", icon: "el-icon-loading" }
       ]
     },
     // 付款狀態選項
     paymentStatusOptions: {
       type: Array,
       default: () => [
-        { value: 0, label: "未付款", type: "warning", icon: "el-icon-wallet" },
+        { value: 0, label: "待付款", type: "warning", icon: "el-icon-wallet" },
         { value: 1, label: "已付款", type: "success", icon: "el-icon-check" },
-        { value: 2, label: "部分付款", type: "info", icon: "el-icon-time" },
-        { value: 3, label: "已退款", type: "danger", icon: "el-icon-close" }
+        { value: 2, label: "付款確認中", type: "info", icon: "el-icon-time" },
+        { value: 3, label: "已退款", type: "danger", icon: "el-icon-close" },
+        { value: 4, label: "付款取消", type: "danger", icon: "el-icon-close" }
       ]
     },
     // 預設圖片配置
@@ -769,7 +764,13 @@ export default {
 
     // handleUpdateStatus
     handleUpdateStatus(updateResult) {
-      // 實際應用中這裡應該調用API更新狀態
+      // 如果需要刷新數據，則觸發刷新事件
+      if (updateResult.shouldRefreshData) {
+        this.$emit("batch-update", updateResult);
+        return;
+      }
+
+      // 如果不需要刷新，則進行本地數據更新
       updateResult.rows.forEach(row => {
         // 找到原始數據並更新
         const index = this.data.findIndex(
@@ -779,31 +780,36 @@ export default {
           // 更新當前狀態字段
           this.data[index][this.currentStatusField] = updateResult.status;
 
+          // 取得是否要更新關聯狀態的選項
+          const updateRelatedStatus =
+            updateResult.updateRelatedStatus !== undefined
+              ? updateResult.updateRelatedStatus
+              : true; // 默認為 true
+
           // 狀態聯動邏輯
           if (this.updateType === "order") {
             // 如果更新的是接單狀態
-            if (updateResult.status === 1) {
-              // 已完成
-              // 自動將付款狀態設為已付款
-              this.data[index].paymentStatus = 1;
-            } else if (updateResult.status === 3) {
-              // 已取消
-              // 自動將付款狀態設為已退款
-              this.data[index].paymentStatus = 3;
+            if (updateResult.status === "confirmed") {
+              // 已接單，強制更新為已付款
+              this.data[index].paymentStatus = "paid";
+            } else if (
+              updateResult.status === "rejected" &&
+              updateRelatedStatus
+            ) {
+              // 已拒絕且勾選了更新關聯狀態，將付款狀態更新為付款取消
+              this.data[index].paymentStatus = "cancelled";
             }
           } else if (this.updateType === "payment") {
             // 如果更新的是付款狀態
-            if (updateResult.status === 1) {
-              // 已付款
-              // 檢查是否可以自動更新接單狀態為已完成
-              if (this.data[index].orderStatus !== 3) {
-                // 如果接單狀態不是已取消
-                this.data[index].orderStatus = 1; // 設置為已完成
-              }
-            } else if (updateResult.status === 3) {
-              // 已退款
-              // 將接單狀態設為已取消
-              this.data[index].orderStatus = 3;
+            if (updateResult.status === "paid" && updateRelatedStatus) {
+              // 已付款且勾選了更新關聯狀態，更新為已接單
+              this.data[index].orderStatus = "confirmed";
+            } else if (
+              updateResult.status === "refunded" ||
+              updateResult.status === "cancelled"
+            ) {
+              // 已退款或付款取消，強制更新為已拒絕
+              this.data[index].orderStatus = "rejected";
             }
           }
 
@@ -813,41 +819,13 @@ export default {
         }
       });
 
-      // 如果不需要匯出，就直接關閉對話框並提示
-      if (!updateResult.exportAfterUpdate) {
-        let message = `已成功更新${updateResult.rows.length}條${
-          this.updateType === "order" ? "接單" : "付款"
-        }狀態`;
-
-        // 添加狀態聯動提示
-        if (
-          this.updateType === "order" &&
-          (updateResult.status === 1 || updateResult.status === 3)
-        ) {
-          message +=
-            updateResult.status === 1
-              ? "，並自動更新相關付款狀態為已付款"
-              : "，並自動更新相關付款狀態為已退款";
-        } else if (
-          this.updateType === "payment" &&
-          (updateResult.status === 1 || updateResult.status === 3)
-        ) {
-          message +=
-            updateResult.status === 1
-              ? "，並自動更新相關接單狀態為已完成"
-              : "，並自動更新相關接單狀態為已取消";
-        }
-
-        this.$message.success(message);
-        this.$emit("batch-update", updateResult);
-        this.batchUpdateDialogVisible = false;
-      }
-      // 如果需要匯出，會通過 @show-export-dialog 事件觸發 showExportAfterUpdate 方法
+      // 通知父組件
+      this.$emit("batch-update", updateResult);
     },
 
     // 獲取子項目用於匯出
     getSubItemsForExport(row) {
-      return row.details || [];
+      return row.items || [];
     },
 
     // 處理匯出數據

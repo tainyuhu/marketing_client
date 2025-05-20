@@ -96,16 +96,16 @@ export default {
      * 判斷備註是否為重要或固定
      */
     isImportantOrPinned() {
-      return this.remark && (this.remark.isImportant || this.remark.isPinned);
+      return this.remark && (this.remark.is_important || this.remark.is_pinned);
     },
 
     /**
      * 格式化後的時間
      */
     formattedTime() {
-      if (!this.remark || !this.remark.createdAt) return "";
+      if (!this.remark || !this.remark.create_time) return "";
 
-      const date = new Date(this.remark.createdAt);
+      const date = new Date(this.remark.create_time);
       const now = new Date();
 
       // 如果是今天的備註，只顯示時間
