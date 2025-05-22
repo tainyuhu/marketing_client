@@ -651,21 +651,18 @@ export default {
               comment: this.form.comment,
               rows: processedRows,
               batchQuantityData: this.batchQuantityData,
+              totalQuantity: this.totalQuantity,
               removedRows: this.inactiveRows
             };
+
+            console.log(updateResult);
 
             // 發出更新事件
             this.$emit("update", updateResult);
 
-            // 顯示成功訊息
-            this.$emit("display-message", {
-              type: "success",
-              message: result.message || "批量更新狀態成功"
-            });
-
             // 如果選擇了匯出，觸發匯出功能
             if (this.form.exportAfterUpdate) {
-              this.triggerExport(processedRows);
+              this.$emit("show-export-dialog", updateResult);
             }
 
             this.dialogVisible = false;
@@ -686,63 +683,6 @@ export default {
         } finally {
           this.submitLoading = false;
         }
-      });
-    },
-
-    // 新增：觸發匯出功能
-    triggerExport(processedRows) {
-      // 生成預設檔案名稱
-      const timestamp = formatDate(new Date(), "YYYYMMDD_HHmmss");
-      const statusLabel = this.getStatusLabel(this.form.status);
-      const filename = `批量更新_${statusLabel}_${timestamp}`;
-
-      // 建立標準化的欄位配置 - 適配 SalesManagement 的欄位
-      const columns = [
-        { prop: this.titleField, label: "訂單編號", minWidth: 120 },
-        {
-          prop: "originalStatus",
-          label: "原始狀態",
-          minWidth: 100,
-          formatter: row => this.getStatusLabel(row.originalStatus)
-        },
-        {
-          prop: this.statusField,
-          label: "更新後狀態",
-          minWidth: 100,
-          formatter: row => this.getStatusLabel(row[this.statusField])
-        },
-        { prop: "statusUpdateComment", label: "處理備註", minWidth: 180 },
-        {
-          prop: "statusUpdateTime",
-          label: "更新時間",
-          minWidth: 150,
-          formatter: row =>
-            formatDate(row.statusUpdateTime, "YYYY-MM-DD HH:mm:ss")
-        },
-        { prop: "receiver_name", label: "收件人", minWidth: 100 },
-        { prop: "receiver_phone", label: "收件電話", minWidth: 130 },
-        { prop: "receiver_address", label: "收件地址", minWidth: 200 }
-      ];
-
-      // 取得子項目資料
-      const hasChildItems = !!processedRows.find(
-        row => row.details && row.details.length > 0
-      );
-      const subColumns = [
-        { prop: "product_name", label: "商品名稱", minWidth: 200 },
-        { prop: "item_code", label: "品號", minWidth: 120 },
-        { prop: "batch_number", label: "批號", minWidth: 120 },
-        { prop: "quantity", label: "數量", minWidth: 80, align: "right" }
-      ];
-
-      // 觸發父組件中的匯出預覽對話框
-      this.$emit("show-export-dialog", {
-        selectedRows: processedRows,
-        columns,
-        subColumns,
-        hasChildItems,
-        getSubItems: row => row.details || [],
-        filename
       });
     },
 

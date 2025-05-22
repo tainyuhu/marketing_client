@@ -28,9 +28,7 @@ export async function getAdminOrderList(params = { page: 1, limit: 20 }) {
 // 批量更新訂單狀態
 export async function batchUpdateFulfillmentStatus(payload) {
   try {
-    console.log("準備批量更新訂單狀態:", payload);
     const response = await orderAdminApi.batchUpdateFulfillmentStatus(payload);
-    console.log("批量更新成功，回應:", response);
     return {
       success: true,
       data: extractData(response),

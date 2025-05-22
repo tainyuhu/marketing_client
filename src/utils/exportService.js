@@ -2,7 +2,7 @@
 import XLSX from "xlsx";
 
 export const exportToFile = exportData => {
-  // 保留原始解構
+  // 保留原始解構，增加批次數量相關參數
   let {
     format = "xlsx",
     filename = "data-export",
@@ -10,8 +10,13 @@ export const exportToFile = exportData => {
     subColumns = [],
     selectedRows = [],
     subItems = [], // 保留舊結構的 subItems 變量
-    sheetConfig = "separate",
-    rowKey = "id"
+    sheetConfig = "separate", // 確保這裡有默認值
+    rowKey = "id",
+    // 新增批次數量相關參數
+    batchColumns = [],
+    batchQuantityData = [],
+    totalQuantity = 0,
+    hasBatchData = false
   } = exportData;
 
   // 建立工作簿
@@ -130,6 +135,74 @@ export const exportToFile = exportData => {
     XLSX.utils.book_append_sheet(workbook, subWorksheet, "子項目");
   }
 
+  // 新增處理批次數量數據
+  if (
+    hasBatchData &&
+    batchQuantityData &&
+    Array.isArray(batchQuantityData) &&
+    batchQuantityData.length > 0 &&
+    batchColumns &&
+    Array.isArray(batchColumns) &&
+    batchColumns.length > 0
+  ) {
+    const batchData = batchQuantityData.map(batchItem => {
+      const item = {};
+      batchColumns.forEach(column => {
+        item[column.label] = batchItem[column.prop];
+      });
+      return item;
+    });
+
+    // 如果有總數量，添加到最後一行
+    if (totalQuantity > 0) {
+      const totalRow = {};
+      batchColumns.forEach(column => {
+        if (column.prop === "quantity") {
+          totalRow[column.label] = totalQuantity;
+        } else if (column.prop === "batchNumber") {
+          totalRow[column.label] = "總計";
+        } else {
+          totalRow[column.label] = "";
+        }
+      });
+      batchData.push(totalRow);
+    }
+
+    const batchWorksheet = XLSX.utils.json_to_sheet(batchData);
+
+    // 調整欄位寬度
+    const batchColWidths = batchColumns.map(col => ({
+      wch: Math.max(col.label.length * 2, 12)
+    }));
+    batchWorksheet["!cols"] = batchColWidths;
+
+    // 添加格線
+    addGridLines(batchWorksheet, batchData.length, batchColumns.length);
+
+    // 如果有總數量，為最後一行添加特殊樣式
+    if (totalQuantity > 0) {
+      const range = XLSX.utils.decode_range(batchWorksheet["!ref"]);
+      const lastRow = range.e.r;
+
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const cellRef = XLSX.utils.encode_cell({ r: lastRow, c });
+
+        if (!batchWorksheet[cellRef].s) batchWorksheet[cellRef].s = {};
+
+        batchWorksheet[cellRef].s = {
+          ...batchWorksheet[cellRef].s,
+          font: { bold: true },
+          fill: {
+            patternType: "solid",
+            fgColor: { rgb: "E6F7FF" } // 淺藍色背景
+          }
+        };
+      }
+    }
+
+    XLSX.utils.book_append_sheet(workbook, batchWorksheet, "出貨單總量");
+  }
+
   // 處理額外的子表格 (第二個開始)
   if (additionalSubTables.length > 0 && sheetConfig === "separate") {
     additionalSubTables.forEach((subTable, index) => {
@@ -165,7 +238,7 @@ export const exportToFile = exportData => {
     });
   }
 
-  // 合併表單 - 把主項目和子項目資料整合到一個表單中 (原有邏輯)
+  // 合併表單 - 把主項目和子項目資料整合到一個表單中 (優化後的邏輯)
   if (
     sheetConfig === "combined" &&
     selectedRows.length > 0 &&
@@ -174,11 +247,23 @@ export const exportToFile = exportData => {
   ) {
     const combinedData = [];
 
-    // 依據主項目和子項目組織資料
+    // 依據主項目和子項目組織資料 - 優化後每個主項目只出現一次
     selectedRows.forEach(mainRow => {
-      let hasAnySubItems = false;
+      // 創建一個包含主項目數據的基本記錄
+      const baseMainItem = {};
 
-      // 先處理原有的子項目 (subItems)
+      // 填充主項目數據
+      mainColumns.forEach(column => {
+        baseMainItem[`主項目_${column.label}`] = formatValue(mainRow, column);
+      });
+
+      // 追蹤是否有找到相關的子項目
+      let hasSubItems = false;
+
+      // 收集此主項目的所有子項目數據
+      const allRelatedSubItems = [];
+
+      // 處理原始子項目 (subItems)
       if (subItems && Array.isArray(subItems) && subItems.length > 0) {
         // 找出此主項目所有相關的子項目
         const relatedSubItems = subItems.filter(
@@ -188,33 +273,26 @@ export const exportToFile = exportData => {
         );
 
         if (relatedSubItems.length > 0) {
-          hasAnySubItems = true;
-          // 有子項目的情況: 為每個子項目建立一條記錄，並包含主項目資料
+          hasSubItems = true;
+
+          // 為每個子項目創建一個記錄
           relatedSubItems.forEach(subItem => {
-            const combinedItem = {};
+            const subItemRecord = {};
 
-            // 先添加主項目資料 (加前綴以區分)
-            mainColumns.forEach(column => {
-              combinedItem[`主項目_${column.label}`] = formatValue(
-                mainRow,
-                column
-              );
-            });
-
-            // 再添加子項目資料
+            // 填充子項目數據
             subColumns.forEach(column => {
-              combinedItem[`子項目_${column.label}`] = formatValue(
+              subItemRecord[`子項目_${column.label}`] = formatValue(
                 subItem,
                 column
               );
             });
 
-            combinedData.push(combinedItem);
+            allRelatedSubItems.push(subItemRecord);
           });
         }
       }
 
-      // 再處理額外的子表格
+      // 處理額外的子表格
       additionalSubTables.forEach((subTable, tableIndex) => {
         const items = subTable.items || [];
         const columns = subTable.columns || [];
@@ -228,40 +306,48 @@ export const exportToFile = exportData => {
         );
 
         if (relatedSubItems.length > 0) {
-          hasAnySubItems = true;
-          // 有子項目的情況: 為每個子項目建立一條記錄，並包含主項目資料
+          hasSubItems = true;
+
+          // 為每個子項目創建一個記錄
           relatedSubItems.forEach(subItem => {
-            const combinedItem = {};
+            const subItemRecord = {};
 
-            // 先添加主項目資料 (加前綴以區分)
-            mainColumns.forEach(column => {
-              combinedItem[`主項目_${column.label}`] = formatValue(
-                mainRow,
-                column
-              );
-            });
-
-            // 再添加子項目資料 (使用子表格名稱作為前綴)
+            // 填充子項目數據
             columns.forEach(column => {
-              combinedItem[`${tableName}_${column.label}`] = formatValue(
+              subItemRecord[`${tableName}_${column.label}`] = formatValue(
                 subItem,
                 column
               );
             });
 
-            combinedData.push(combinedItem);
+            allRelatedSubItems.push(subItemRecord);
           });
         }
       });
 
-      // 如果沒有任何子項目，只包含主項目資料
-      if (!hasAnySubItems) {
-        const combinedItem = {};
+      // 如果有子項目，則合併主項目和子項目數據
+      if (hasSubItems && allRelatedSubItems.length > 0) {
+        // 如果有多個子項目記錄，將主項目數據與第一個子項目記錄合併
+        const firstSubRecord = allRelatedSubItems.shift();
+        const firstCombinedItem = { ...baseMainItem, ...firstSubRecord };
+        combinedData.push(firstCombinedItem);
 
-        // 添加主項目資料
-        mainColumns.forEach(column => {
-          combinedItem[`主項目_${column.label}`] = formatValue(mainRow, column);
+        // 對於剩餘的子項目記錄，創建空的主項目數據行
+        allRelatedSubItems.forEach(subRecord => {
+          const emptiedMainItem = {};
+
+          // 用空值填充主項目欄位
+          mainColumns.forEach(column => {
+            emptiedMainItem[`主項目_${column.label}`] = "";
+          });
+
+          // 合併空主項目和子項目數據
+          const combinedItem = { ...emptiedMainItem, ...subRecord };
+          combinedData.push(combinedItem);
         });
+      } else {
+        // 沒有子項目的情況，只添加主項目數據
+        const combinedItem = { ...baseMainItem };
 
         // 子項目欄位設為空 (原始子項目)
         if (subColumns && Array.isArray(subColumns)) {
@@ -323,6 +409,13 @@ export const exportToFile = exportData => {
     const totalColumns = combinedColWidths.length;
     addGridLines(combinedWorksheet, combinedData.length, totalColumns);
 
+    // 添加適當的表格樣式以區分每個主項目組
+    styleMainGroupsInCombinedSheet(
+      combinedWorksheet,
+      combinedData,
+      mainColumns.length
+    );
+
     XLSX.utils.book_append_sheet(workbook, combinedWorksheet, "合併資料");
   }
 
@@ -353,6 +446,83 @@ export const exportToFile = exportData => {
 
   return false;
 };
+
+// 為合併工作表中的主項目組添加樣式
+function styleMainGroupsInCombinedSheet(worksheet, data, mainColumnCount) {
+  if (!worksheet || !data || !data.length) return;
+
+  const range = XLSX.utils.decode_range(worksheet["!ref"]);
+
+  // 追蹤當前正在處理的主項目
+  let currentGroup = null;
+  let groupStartRow = 0;
+
+  // 為每一行添加適當的樣式
+  for (let r = range.s.r + 1; r <= range.e.r; r++) {
+    // 從第二行開始（跳過標題行）
+    const isMainRow = isMainItemRow(data[r - 1], mainColumnCount);
+
+    // 如果是新的主項目行，標記新組的開始
+    if (isMainRow) {
+      // 如果之前已有組，處理之前組的樣式
+      if (currentGroup !== null) {
+        addGroupStyle(worksheet, groupStartRow, r - 1);
+      }
+
+      // 開始新的組
+      currentGroup = r;
+      groupStartRow = r;
+
+      // 為主項目行添加樣式
+      for (let c = range.s.c; c < range.s.c + mainColumnCount; c++) {
+        const cellRef = XLSX.utils.encode_cell({ r, c });
+
+        if (!worksheet[cellRef].s) worksheet[cellRef].s = {};
+
+        // 主項目欄位用粗體和淺灰背景
+        worksheet[cellRef].s = {
+          ...worksheet[cellRef].s,
+          font: { bold: true },
+          fill: {
+            patternType: "solid",
+            fgColor: { rgb: "F2F2F2" }
+          }
+        };
+      }
+    }
+  }
+
+  // 處理最後一個組
+  if (currentGroup !== null) {
+    addGroupStyle(worksheet, groupStartRow, range.e.r);
+  }
+}
+
+// 判斷一行是否為主項目行（判斷依據是主項目欄位是否有值）
+function isMainItemRow(dataRow, mainColumnCount) {
+  if (!dataRow) return false;
+
+  // 檢查是否至少有一個主項目欄位有值
+  const mainItemKeys = Object.keys(dataRow).filter(key =>
+    key.startsWith("主項目_")
+  );
+
+  for (const key of mainItemKeys) {
+    if (dataRow[key] !== "") {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// 為一個主項目組添加樣式
+function addGroupStyle(worksheet, startRow, endRow) {
+  if (startRow === endRow) return; // 單行不需要特殊處理
+
+  // 可以在這裡添加組樣式，例如輕微的背景色交替等
+  // 這裡暫時不添加額外樣式
+}
 
 // 格式化值的輔助函數
 function formatValue(row, column) {
