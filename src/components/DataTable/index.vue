@@ -259,6 +259,9 @@
       :has-child-items="!!subTableColumns.length"
       :format-column-value="formatColumnValue"
       :filename="filename"
+      :batch-quantity-data="exportBatchQuantityData"
+      :total-quantity="exportTotalQuantity"
+      :from-batch-update="!!exportBatchQuantityData.length"
       @export="handleExportData"
     ></export-preview-dialog>
   </div>
@@ -271,6 +274,7 @@ import BatchUpdateDialog from "./BatchUpdateDialog.vue";
 import ExportPreviewDialog from "./ExportPreviewDialog.vue";
 import { deepClone, formatDate, generateId } from "@/utils/dataTable.js";
 import { exportToFile } from "@/utils/exportService.js";
+import { Message } from "element-ui";
 
 export default {
   name: "DataTable",
@@ -428,6 +432,9 @@ export default {
       // 選擇相關
       selectedRows: [],
       selectedRowKeys: new Set(),
+      // 新增用於匯出的批次數量數據
+      exportBatchQuantityData: [],
+      exportTotalQuantity: 0,
       // 表格key，用於強制刷新
       tableKey: 0,
       // 響應式分頁佈局
@@ -569,7 +576,7 @@ export default {
 
     handleDialogMessage(msgData) {
       // 根據您項目中的消息提示方式處理
-      this.$message({
+      Message({
         type: msgData.type,
         message: msgData.message
       });
@@ -685,7 +692,7 @@ export default {
     // 處理批量更新
     handleBatchUpdate() {
       if (!this.selectedRows.length) {
-        this.$message.warning("請至少選擇一條數據");
+        Message.warning("請至少選擇一條數據");
         return;
       }
       this.batchUpdateDialogVisible = true;
@@ -693,26 +700,22 @@ export default {
 
     // 處理更新後匯出
     showExportAfterUpdate(updateResult) {
+      console.log("資料", updateResult);
       // 關閉批量更新對話框
       this.batchUpdateDialogVisible = false;
 
       // 構建更新後的數據
       const processedRows = updateResult.rows;
 
-      // 生成預設檔案名稱
-      const timestamp = formatDate(new Date(), "YYYYMMDD_HHmmss");
-      const statusLabel = this.formatStatusValue(updateResult.status);
-      const filename = `批量更新_${statusLabel}_${timestamp}`;
-
-      // 設置匯出對話框配置
-      this.exportRows = processedRows;
-      this.exportFilename = filename;
+      this.selectedRows = processedRows;
 
       // 顯示匯出預覽對話框
       this.exportPreviewDialogVisible = true;
+      this.exportBatchQuantityData = updateResult.batchQuantityData || [];
+      this.exportTotalQuantity = updateResult.totalQuantity || 0;
 
       // 提示用戶
-      this.$message.success(
+      Message.success(
         `已成功更新${processedRows.length}條數據的狀態，請配置匯出選項`
       );
 
@@ -737,11 +740,17 @@ export default {
         }
       });
 
+      // 清除表格選擇狀態
+      if (this.$refs.table) {
+        this.$refs.table.clearSelection();
+      }
+
+      // 重要：強制刷新表格
+      this.refreshTable();
+
       // 如果不需要匯出，就直接關閉對話框並提示
       if (!updateResult.exportAfterUpdate) {
-        this.$message.success(
-          `已成功更新${updateResult.rows.length}條數據的狀態`
-        );
+        Message.success(`已成功更新${updateResult.rows.length}條數據的狀態`);
         this.$emit("batch-update", updateResult);
         this.batchUpdateDialogVisible = false;
       }
@@ -751,7 +760,7 @@ export default {
     // 處理匯出預覽
     handleExportPreview() {
       if (!this.selectedRows.length) {
-        this.$message.warning("請至少選擇一條數據");
+        Message.warning("請至少選擇一條數據");
         return;
       }
       this.exportPreviewDialogVisible = true;
@@ -767,7 +776,7 @@ export default {
       try {
         const result = exportToFile(exportData);
         if (result) {
-          this.$message.success(
+          Message.success(
             `成功匯出 ${exportData.selectedRows.length} 筆主項目資料${
               exportData.subItems.length
                 ? ` 和 ${exportData.subItems.length} 筆子項目資料`
@@ -775,13 +784,15 @@ export default {
             }`
           );
         } else {
-          this.$message.error("匯出失敗");
+          Message.error("匯出失敗");
         }
       } catch (error) {
         console.error("匯出錯誤:", error);
-        this.$message.error(`匯出失敗: ${error.message}`);
+        Message.error(`匯出失敗: ${error.message}`);
       } finally {
         this.exportPreviewDialogVisible = false;
+        this.exportBatchQuantityData = [];
+        this.exportTotalQuantity = 0;
       }
     },
 

@@ -4,6 +4,10 @@
     title="匯出資料預覽"
     :visible.sync="dialogVisible"
     width="800px"
+    :append-to-body="true"
+    :modal-append-to-body="false"
+    :modal="false"
+    :close-on-press-escape="false"
     :close-on-click-modal="false"
     :before-close="handleClose"
     custom-class="list-dialog"
@@ -18,13 +22,18 @@
           <span class="label">子項目：</span>
           <span class="value">共 {{ totalSubItems }} 筆</span>
         </div>
+        <div class="info-row" v-if="showBatchTab">
+          <span class="label">出貨單總量：</span>
+          <span class="value">共 {{ batchQuantityData.length }} 筆</span>
+        </div>
         <div class="info-row">
           <span class="label">匯出欄位：</span>
           <span class="value"
             >共
             {{
               exportableColumns.length +
-                (hasChildItems ? exportableSubColumns.length : 0)
+                (hasChildItems ? exportableSubColumns.length : 0) +
+                (showBatchTab ? exportableBatchColumns.length : 0)
             }}
             列</span
           >
@@ -99,6 +108,35 @@
               </div>
             </div>
           </el-tab-pane>
+
+          <!-- 新增批次數量欄位配置 -->
+          <el-tab-pane v-if="showBatchTab" label="出貨單總量欄位" name="batch">
+            <div class="column-selection">
+              <div class="selection-header">
+                <el-checkbox
+                  v-model="selectAllBatchColumns"
+                  :indeterminate="isBatchIndeterminate"
+                  @change="handleCheckAllBatchColumnsChange"
+                >
+                  全選
+                </el-checkbox>
+              </div>
+              <div class="column-list">
+                <div
+                  v-for="column in exportableBatchColumns"
+                  :key="column.prop"
+                  class="column-item"
+                >
+                  <el-checkbox
+                    v-model="selectedBatchColumns"
+                    :label="column.prop"
+                  >
+                    {{ column.label }}
+                  </el-checkbox>
+                </div>
+              </div>
+            </div>
+          </el-tab-pane>
         </el-tabs>
       </div>
 
@@ -159,6 +197,34 @@
               </el-table>
             </div>
           </el-tab-pane>
+
+          <!-- 新增批次數量 Tab -->
+          <el-tab-pane v-if="showBatchTab" label="出貨單總量">
+            <div class="preview-table-wrapper">
+              <el-table
+                :data="batchQuantityData"
+                border
+                size="small"
+                height="250"
+                class="preview-table"
+              >
+                <el-table-column
+                  v-for="column in displayBatchColumns"
+                  :key="column.prop"
+                  :prop="column.prop"
+                  :label="column.label"
+                  :min-width="column.minWidth || 120"
+                  :align="column.align || 'center'"
+                  :show-overflow-tooltip="true"
+                ></el-table-column>
+              </el-table>
+
+              <div class="batch-summary" v-if="totalQuantity > 0">
+                <span class="summary-label">總數量：</span>
+                <span class="summary-value">{{ totalQuantity }} 件</span>
+              </div>
+            </div>
+          </el-tab-pane>
         </el-tabs>
       </div>
 
@@ -187,7 +253,7 @@
               <el-radio-button label="csv">CSV</el-radio-button>
             </el-radio-group>
           </div>
-          <div class="option-item" v-if="hasChildItems">
+          <div class="option-item" v-if="hasChildItems || showBatchTab">
             <div class="option-label">表單配置：</div>
             <el-radio-group v-model="sheetConfig" size="small">
               <el-radio-button label="separate">分開表單</el-radio-button>
@@ -262,6 +328,18 @@ export default {
     hasChildItems: {
       type: Boolean,
       default: false
+    },
+    batchQuantityData: {
+      type: Array,
+      default: () => []
+    },
+    totalQuantity: {
+      type: Number,
+      default: 0
+    },
+    fromBatchUpdate: {
+      type: Boolean,
+      default: false
     }
   },
 
@@ -279,7 +357,10 @@ export default {
       exportFilename: "",
       selectedFormat: "xlsx",
       exportLoading: false,
-      sheetConfig: "separate" // 預設分開表單
+      sheetConfig: "separate", // 預設分開表單
+      selectedBatchColumns: [],
+      selectAllBatchColumns: true,
+      isBatchIndeterminate: false
     };
   },
 
@@ -354,6 +435,27 @@ export default {
       }
 
       return count;
+    },
+    exportableBatchColumns() {
+      return [
+        { prop: "batchNumber", label: "批號" },
+        { prop: "quantity", label: "數量" },
+        { prop: "productCode", label: "產品代碼" },
+        { prop: "productName", label: "產品名稱" }
+      ].filter(col =>
+        this.batchQuantityData.some(row => row[col.prop] !== undefined)
+      );
+    },
+    // 當前顯示的批次數量列
+    displayBatchColumns() {
+      return this.exportableBatchColumns.filter(col =>
+        this.selectedBatchColumns.includes(col.prop)
+      );
+    },
+
+    // 是否顯示批次數量 Tab
+    showBatchTab() {
+      return this.fromBatchUpdate && this.batchQuantityData.length > 0;
     }
   },
 
@@ -380,10 +482,35 @@ export default {
 
       this.selectAllSubColumns = checkedCount === totalCount;
       this.isSubIndeterminate = checkedCount > 0 && checkedCount < totalCount;
+    },
+    selectedBatchColumns(val) {
+      const checkedCount = val.length;
+      const totalCount = this.exportableBatchColumns.length;
+
+      this.selectAllBatchColumns = checkedCount === totalCount;
+      this.isBatchIndeterminate = checkedCount > 0 && checkedCount < totalCount;
+    },
+
+    // 初始化時設置批次數量列
+    batchQuantityData: {
+      handler(newVal) {
+        if (newVal && newVal.length && this.exportableBatchColumns.length) {
+          this.selectedBatchColumns = this.exportableBatchColumns.map(
+            col => col.prop
+          );
+        }
+      },
+      immediate: true
     }
   },
 
   methods: {
+    // 處理全選批次數量列變化
+    handleCheckAllBatchColumnsChange(val) {
+      this.selectedBatchColumns = val
+        ? this.exportableBatchColumns.map(col => col.prop)
+        : [];
+    },
     // 初始化對話框
     initializeDialog() {
       // 設定預設選中所有主項目列
@@ -395,6 +522,13 @@ export default {
       this.selectedSubColumns = this.exportableSubColumns.map(col => col.prop);
       this.selectAllSubColumns = true;
       this.isSubIndeterminate = false;
+
+      // 設定預設選中所有批次數量列
+      this.selectedBatchColumns = this.exportableBatchColumns.map(
+        col => col.prop
+      );
+      this.selectAllBatchColumns = true;
+      this.isBatchIndeterminate = false;
 
       // 設定預設檔案名稱
       const timestamp = formatDate(new Date(), "YYYYMMDD_HHmmss");
@@ -473,7 +607,11 @@ export default {
         mainColumns: this.displayColumns,
         subColumns: this.displaySubColumns,
         selectedRows: this.selectedRows,
-        subItems: this.hasChildItems ? this.getAllSubItems() : []
+        subItems: this.hasChildItems ? this.getAllSubItems() : [],
+        batchColumns: this.displayBatchColumns,
+        batchQuantityData: this.batchQuantityData,
+        totalQuantity: this.totalQuantity,
+        hasBatchData: this.showBatchTab
       };
 
       // 延遲模擬匯出過程
@@ -616,6 +754,28 @@ export default {
   .dialog-footer {
     text-align: right;
   }
+}
+
+.batch-summary {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 8px 10px;
+  background-color: #f5f7fa;
+  border: 1px solid #ebeef5;
+  border-top: none;
+  font-size: 14px;
+}
+
+.summary-label {
+  color: #606266;
+  font-weight: 500;
+  margin-right: 5px;
+}
+
+.summary-value {
+  color: #409eff;
+  font-weight: 600;
 }
 
 ::v-deep .list-dialog {

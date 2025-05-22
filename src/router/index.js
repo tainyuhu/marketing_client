@@ -319,6 +319,7 @@ export const asyncRoutes = [
       {
         path: "inventory",
         name: "inventory",
+        hidden: true,
         component: () => import("@/views/wms/inventory/index"),
         meta: {
           title: "庫存中控台",
@@ -329,6 +330,7 @@ export const asyncRoutes = [
       {
         path: "inventorymanage",
         name: "inventorymanage",
+        hidden: true,
         component: () => import("@/views/wms/inventory/inventorymanage"),
         meta: {
           title: "庫存管理",
@@ -349,6 +351,7 @@ export const asyncRoutes = [
       {
         path: "inventorybatchmanage",
         name: "inventorybatchmanage",
+        hidden: true,
         component: () => import("@/views/wms/inventory/inventorybatchmanage"),
         meta: {
           title: "庫存批號管理",
@@ -359,6 +362,7 @@ export const asyncRoutes = [
       {
         path: "classification",
         name: "classification",
+        hidden: true,
         component: () => import("@/views/wms/product/classification"),
         meta: {
           title: "行銷類別管理",
@@ -369,6 +373,7 @@ export const asyncRoutes = [
       {
         path: "warehousecategory",
         name: "warehousecategory",
+        hidden: true,
         component: () => import("@/views/wms/product/warehousecategory"),
         meta: {
           title: "品號類別管理",
@@ -379,6 +384,7 @@ export const asyncRoutes = [
       {
         path: "multi-sku",
         name: "multi-sku",
+        hidden: true,
         component: () => import("@/views/wms/multiSku/index"),
         meta: {
           title: "品號管理",
@@ -399,6 +405,7 @@ export const asyncRoutes = [
       {
         path: "preorder",
         name: "preorder",
+        hidden: true,
         component: () => import("@/views/wms/preorder/index"),
         meta: {
           title: "訂單預購管理",
@@ -409,6 +416,7 @@ export const asyncRoutes = [
       {
         path: "aftersales",
         name: "aftersales",
+        hidden: true,
         component: () => import("@/views/wms/aftersales/index"),
         meta: {
           title: "售後服務中心",
@@ -419,6 +427,7 @@ export const asyncRoutes = [
       {
         path: "repayment",
         name: "repayment",
+        hidden: true,
         component: () => import("@/views/wms/repayment/index"),
         meta: {
           title: "還款作業管理",
@@ -429,6 +438,7 @@ export const asyncRoutes = [
       {
         path: "returns",
         name: "returns",
+        hidden: true,
         component: () => import("@/views/wms/returns/index"),
         meta: {
           title: "退貨管理",
@@ -439,6 +449,7 @@ export const asyncRoutes = [
       {
         path: "complaint",
         name: "complaint",
+        hidden: true,
         component: () => import("@/views/wms/complaint/index"),
         meta: {
           title: "客訴管理",
@@ -500,6 +511,7 @@ export const asyncRoutes = [
     component: Layout,
     redirect: "/system/user",
     name: "System",
+    hidden: true,
     meta: { title: "系统管理", icon: "system", perms: ["system_manage"] },
     children: [
       {
@@ -575,6 +587,7 @@ export const asyncRoutes = [
     component: Layout,
     redirect: "/develop/perm",
     name: "Develop",
+    hidden: true,
     meta: {
       title: "開發配置",
       icon: "example",

@@ -3,11 +3,6 @@
     <!-- 頁面標題區域 -->
     <div class="page-header">
       <h2>訂單管理</h2>
-      <div class="action-buttons">
-        <el-button type="primary" icon="el-icon-plus" @click="handleCreateNew"
-          >新增訂單</el-button
-        >
-      </div>
     </div>
 
     <!-- 主要內容區域 -->
@@ -22,7 +17,7 @@
                   ref="salesSearch"
                   :search-value="salesSearchQuery"
                   :time-value="salesDateRange"
-                  :search-placeholder="'搜尋訂單號碼、客戶名稱...'"
+                  :search-placeholder="'搜尋'"
                   :search-button-text="'搜尋'"
                   :show-search-button="true"
                   :search-button-icon="'el-icon-search'"
@@ -30,20 +25,6 @@
                   :time-shortcuts="true"
                   @search="handleCombinedSearch"
                 />
-                <el-select
-                  v-model="filterFulfillmentStatus"
-                  placeholder="處理狀態"
-                  clearable
-                  @change="handleFilterChange"
-                >
-                  <el-option
-                    v-for="option in fulfillmentStatusOptions"
-                    :key="option.value"
-                    :label="option.label"
-                    :value="option.value"
-                  >
-                  </el-option>
-                </el-select>
                 <el-button
                   v-if="isFiltering"
                   type="warning"
@@ -78,6 +59,7 @@
                 @sort-change="handleSortChange"
                 @expand-change="handleExpandChange"
                 @sub-row-click="handleSubRowClick"
+                @batch-update="handleBatchUpdate"
               >
                 <!-- 自訂列格式插槽 -->
                 <template #column-fulfillment_status="{ row }">
@@ -147,6 +129,7 @@
                 @sort-change="handleSortChange"
                 @expand-change="handleExpandChange"
                 @sub-row-click="handleSubRowClick"
+                @batch-update="handleBatchUpdate"
               >
                 <!-- 自訂列格式插槽 -->
                 <template #column-fulfillment_status="{ row }">
@@ -356,10 +339,11 @@ export default {
         }
       ],
       salesDetailColumns: [
+        { prop: "order_number", label: "訂單編號", sortable: true, width: 250 },
         { prop: "product_name", label: "商品名稱", width: 200 },
         { prop: "item_code", label: "品號", width: 200 },
-        { prop: "batch_number", label: "批號", width: 250 },
-        { prop: "quantity", label: "數量", width: 180, align: "right" }
+        { prop: "batch_number", label: "批號", width: 200 },
+        { prop: "quantity", label: "數量", width: 100, align: "right" }
       ],
       historyColumns: [
         { prop: "user", label: "操作人員", width: 120 },
@@ -588,11 +572,6 @@ export default {
       this.handleSearch();
     },
 
-    // 處理篩選器改變事件
-    handleFilterChange() {
-      this.handleSearch();
-    },
-
     // 搜尋功能
     handleSearch() {
       const params = this.getQueryParams();
@@ -763,19 +742,9 @@ export default {
       console.log("子表格行點擊:", subRow, parentRow);
     },
 
-    async handleSaveSales(salesData) {
+    async handleSaveSales() {
       try {
         this.loading = true;
-        if (salesData.id) {
-          // 更新
-          await SalesService.updateSales(salesData);
-          this.$message.success("訂單更新成功");
-        } else {
-          // 新增
-          await SalesService.createSales(salesData);
-          this.$message.success("訂單創建成功");
-        }
-
         this.salesDialogVisible = false;
         this.fetchSalesData();
       } catch (error) {
